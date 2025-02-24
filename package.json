@@ -1,7 +1,7 @@
 {
   "name": "zerox",
-  "version": "1.0.47",
-  "description": "ocr documents using gpt-4o-mini",
+  "version": "1.0.47-truelime",
+  "description": "ocr documents using gpt-4o",
   "main": "node-zerox/dist/index.js",
   "scripts": {
     "clean": "rm -rf node-zerox/dist",
@@ -11,7 +11,7 @@
     "test": "ts-node node-zerox/tests/index.ts",
     "test:performance": "jest node-zerox/tests/performance.test.ts --runInBand"
   },
-  "author": "tylermaran",
+  "author": "Blom",
   "license": "MIT",
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.734.0",
@@ -46,7 +46,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/getomni-ai/zerox.git"
+    "url": "git+https://github.com/rwb-truelime/zerox"
   },
   "keywords": [
     "ocr",
@@ -55,7 +55,7 @@
   ],
   "types": "node-zerox/dist/index.d.ts",
   "bugs": {
-    "url": "https://github.com/getomni-ai/zerox/issues"
+    "url": "https://github.com/rwb-truelime/zerox/issues"
   },
-  "homepage": "https://github.com/getomni-ai/zerox#readme"
+  "homepage": "https://github.com/rwb-truelime/zerox#readme"
 }
