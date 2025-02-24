@@ -12,6 +12,9 @@ export const CONSISTENCY_PROMPT = (priorPage: string): string =>
 export let SYSTEM_PROMPT_BASE = '';
 export let LANGFUSE_METADATA: LangfuseMetadata | undefined;
 
+// Get the system prompt from Langfuse
+// This is a one-time operation, and the prompt is stored in memory
+// for the lifetime of the server.
 export const fetchSystemPrompt = async (): Promise<void> => {
   const host = process.env.LANGFUSE_HOST?.replace(/\/$/, '');
   const publicKey = process.env.LANGFUSE_PUBLIC_KEY;
