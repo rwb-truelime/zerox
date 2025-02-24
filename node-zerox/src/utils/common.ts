@@ -28,29 +28,72 @@ export const isValidUrl = (string: string): boolean => {
 };
 
 // Strip out the ```markdown wrapper
-export const formatMarkdown = (text: string) => {
-  let formattedMarkdown = text?.trim();
-  let loopCount = 0;
-  const maxLoops = 3;
+export const formatMarkdown = (text: string): string => {
+  return (
+    text
+      // First preserve all language code blocks except html and markdown
+      .replace(/```(?!html|markdown)(\w+)([\s\S]*?)```/g, "§§§$1$2§§§")
+      // Then remove html and markdown code markers
+      .replace(/```(?:html|markdown)|````(?:html|markdown)|```/g, "")
+      // Finally restore all preserved language blocks
+      .replace(/§§§(\w+)([\s\S]*?)§§§/g, "```$1$2```")
+  );
+};
 
-  const startsWithMarkdown = formattedMarkdown.startsWith("```markdown");
-  while (startsWithMarkdown && loopCount < maxLoops) {
-    const endsWithClosing = formattedMarkdown.endsWith("```");
-
-    if (startsWithMarkdown && endsWithClosing) {
-      const outermostBlockRegex = /^```markdown\n([\s\S]*?)\n```$/;
-      const match = outermostBlockRegex.exec(formattedMarkdown);
-
-      if (match) {
-        formattedMarkdown = match[1].trim();
-        loopCount++;
-      } else {
-        break;
+export const runRetries = async <T>(
+  operation: () => Promise<T>,
+  maxRetries: number,
+  pageNumber: number
+): Promise<T> => {
+  let retryCount = 0;
+  while (retryCount <= maxRetries) {
+    try {
+      return await operation();
+    } catch (error) {
+      if (retryCount === maxRetries) {
+        throw error;
       }
-    } else {
-      break;
+      console.log(`Retrying page ${pageNumber}...`);
+      retryCount++;
     }
   }
+  throw new Error("Unexpected retry error");
+};
 
-  return formattedMarkdown;
+export const splitSchema = (
+  schema: Record<string, unknown>,
+  extractPerPage?: string[]
+): {
+  fullDocSchema: Record<string, unknown> | null;
+  perPageSchema: Record<string, unknown> | null;
+} => {
+  if (!extractPerPage?.length) {
+    return { fullDocSchema: schema, perPageSchema: null };
+  }
+
+  const fullDocSchema: Record<string, unknown> = {};
+  const perPageSchema: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(schema.properties || {})) {
+    (extractPerPage.includes(key) ? perPageSchema : fullDocSchema)[key] = value;
+  }
+
+  const requiredKeys = Array.isArray(schema.required) ? schema.required : [];
+
+  return {
+    fullDocSchema: Object.keys(fullDocSchema).length
+      ? {
+          type: schema.type,
+          properties: fullDocSchema,
+          required: requiredKeys.filter((key) => !extractPerPage.includes(key)),
+        }
+      : null,
+    perPageSchema: Object.keys(perPageSchema).length
+      ? {
+          type: schema.type,
+          properties: perPageSchema,
+          required: requiredKeys.filter((key) => extractPerPage.includes(key)),
+        }
+      : null,
+  };
 };

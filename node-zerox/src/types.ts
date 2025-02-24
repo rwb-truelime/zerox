@@ -1,9 +1,23 @@
+import Tesseract from "tesseract.js";
+
 export interface ZeroxArgs {
   cleanup?: boolean;
   concurrency?: number;
   correctOrientation?: boolean;
   credentials?: ModelCredentials;
+  customModelFunction?: (params: {
+    buffer: Buffer;
+    image: string;
+    maintainFormat: boolean;
+    priorPage: string;
+  }) => Promise<CompletionResponse>;
   errorMode?: ErrorMode;
+  extractionCredentials?: ModelCredentials;
+  extractionLlmParams?: Partial<LLMParams>;
+  extractionModel?: ModelOptions | string;
+  extractionModelProvider?: ModelProvider | string;
+  extractOnly?: boolean;
+  extractPerPage?: string[];
   filePath: string;
   imageDensity?: number;
   imageHeight?: number;
@@ -11,17 +25,8 @@ export interface ZeroxArgs {
   maintainFormat?: boolean;
   maxRetries?: number;
   maxTesseractWorkers?: number;
-  mode?: OperationMode;
   model?: ModelOptions | string;
   modelProvider?: ModelProvider | string;
-  onPostProcess?: (params: {
-    page: Page;
-    progressSummary: Summary;
-  }) => Promise<void>;
-  onPreProcess?: (params: {
-    imagePath: string;
-    pageNumber: number;
-  }) => Promise<void>;
   openaiAPIKey?: string;
   outputDir?: string;
   pagesToConvertAsImages?: number | number[];
@@ -32,6 +37,7 @@ export interface ZeroxArgs {
 
 export interface ZeroxOutput {
   completionTime: number;
+  extracted: Record<string, unknown> | null;
   fileName: string;
   inputTokens: number;
   outputTokens: number;
@@ -130,7 +136,6 @@ export interface CompletionResponse {
 export interface CreateModelArgs {
   credentials: ModelCredentials;
   llmParams: Partial<LLMParams>;
-  mode: OperationMode;
   model: ModelOptions | string;
   provider: ModelProvider | string;
 }
@@ -141,7 +146,12 @@ export enum ErrorMode {
 }
 
 export interface ExtractionArgs {
-  image: Buffer;
+  input: string | string[];
+  options?: {
+    correctOrientation?: boolean;
+    scheduler: Tesseract.Scheduler | null;
+    trimEdges?: boolean;
+  };
   schema: Record<string, unknown>;
 }
 
@@ -181,16 +191,32 @@ export type LLMParams =
   | GoogleLLMParams
   | OpenAILLMParams;
 
+export interface MessageContentArgs {
+  input: string | string[];
+  options?: {
+    correctOrientation?: boolean;
+    scheduler: Tesseract.Scheduler | null;
+    trimEdges?: boolean;
+  };
+}
+
 export interface ModelInterface {
   getCompletion(
+    mode: OperationMode,
     params: CompletionArgs | ExtractionArgs
   ): Promise<CompletionResponse | ExtractionResponse>;
 }
 
 export interface Summary {
-  numPages: number;
-  numSuccessfulPages: number;
-  numFailedPages: number;
+  totalPages: number;
+  ocr: {
+    successful: number;
+    failed: number;
+  } | null;
+  extracted: {
+    successful: number;
+    failed: number;
+  } | null;
 }
 
 export interface LangfuseMetadata {
