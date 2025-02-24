@@ -28,7 +28,7 @@ import {
   ZeroxArgs,
   ZeroxOutput,
 } from "./types";
-import { NUM_STARTING_WORKERS } from "./constants";
+import { NUM_STARTING_WORKERS, fetchSystemPrompt, LANGFUSE_METADATA } from "./constants";
 
 export const zerox = async ({
   cleanup = true,
@@ -55,6 +55,8 @@ export const zerox = async ({
   tempDir = os.tmpdir(),
   trimEdges = true,
 }: ZeroxArgs): Promise<ZeroxOutput> => {
+  await fetchSystemPrompt();
+
   let inputTokenCount = 0;
   let outputTokenCount = 0;
   let priorPage = "";
@@ -378,6 +380,7 @@ export const zerox = async ({
         numSuccessfulPages,
         numFailedPages,
       },
+      langfuse_metadata: LANGFUSE_METADATA,
     };
   } finally {
     if (correctOrientation && scheduler) {

@@ -37,6 +37,7 @@ export interface ZeroxOutput {
   outputTokens: number;
   pages: Page[];
   summary: Summary;
+  langfuse_metadata?: LangfuseMetadata;
 }
 
 export interface AzureCredentials {
@@ -190,4 +191,19 @@ export interface Summary {
   numPages: number;
   numSuccessfulPages: number;
   numFailedPages: number;
+}
+
+export interface LangfuseMetadata {
+  config: Record<string, unknown>;
+  createdAt: string;
+  createdBy: string;
+  id: string;
+  isActive: boolean | null;
+  labels: string[];
+  name: string;
+  projectId: string;
+  tags: string[];
+  type: string;
+  updatedAt: string;
+  version: number;
 }
