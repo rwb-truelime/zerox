@@ -21,31 +21,60 @@ export const fetchSystemPrompt = async (): Promise<void> => {
   const secretKey = process.env.LANGFUSE_SECRET_KEY;
   const promptName = process.env.LANGFUSE_PROMPT_NAME;
 
+  console.log('Langfuse configuration:', {
+    host,
+    publicKey,
+    promptName,
+    // Not logging secretKey for security
+  });
+
   if (!host || !publicKey || !secretKey || !promptName) {
+    console.error('Missing configuration:', {
+      hasHost: !!host,
+      hasPublicKey: !!publicKey,
+      hasSecretKey: !!secretKey,
+      hasPromptName: !!promptName,
+    });
     throw new Error('Missing Langfuse configuration');
   }
 
   const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64');
+  console.log('Making request to:', `${host}/api/public/v2/prompts/${promptName}`);
   
-  const response = await fetch(
-    `${host}/api/public/v2/prompts/${promptName}`,
-    {
-      headers: {
-        'Authorization': `Basic ${auth}`
+  try {
+    const response = await fetch(
+      `${host}/api/public/v2/prompts/${promptName}`,
+      {
+        headers: {
+          'Authorization': `Basic ${auth}`
+        }
       }
+    );
+
+    console.log('Response status:', response.status);
+    console.log('Response headers:', response.headers);
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('Error response:', errorText);
+      throw new Error(`Failed to fetch system prompt: ${response.statusText}`);
     }
-  );
 
-  if (!response.ok) {
-    throw new Error(`Failed to fetch system prompt: ${response.statusText}`);
+    // Changed this part to handle single object instead of array
+    const data = await response.json() as ({ prompt: string } & LangfuseMetadata);
+    console.log('Received data:', data);
+
+    if (!data || !data.prompt) {
+      console.error('Invalid data received');
+      throw new Error('No prompt found');
+    }
+
+    const { prompt, ...metadata } = data;
+    console.log('Setting prompt and metadata:', { promptLength: prompt.length, metadata });
+    SYSTEM_PROMPT_BASE = prompt;
+    LANGFUSE_METADATA = metadata;
+  } catch (error) {
+    console.error('Error in fetchSystemPrompt:', error);
+    throw error;
   }
-
-  const data = await response.json() as Array<{prompt: string} & LangfuseMetadata>;
-  if (!data.length) {
-    throw new Error('No prompt found');
-  }
-
-  const { prompt, ...metadata } = data[0];
-  SYSTEM_PROMPT_BASE = prompt;
-  LANGFUSE_METADATA = metadata;
 };
