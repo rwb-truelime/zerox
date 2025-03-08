@@ -11,11 +11,13 @@ export interface ZeroxArgs {
     maintainFormat: boolean;
     priorPage: string;
   }) => Promise<CompletionResponse>;
+  directImageExtraction?: boolean;
   errorMode?: ErrorMode;
   extractionCredentials?: ModelCredentials;
   extractionLlmParams?: Partial<LLMParams>;
   extractionModel?: ModelOptions | string;
   extractionModelProvider?: ModelProvider | string;
+  extractionPrompt?: string;
   extractOnly?: boolean;
   extractPerPage?: string[];
   filePath: string;
@@ -23,6 +25,7 @@ export interface ZeroxArgs {
   imageHeight?: number;
   llmParams?: Partial<LLMParams>;
   maintainFormat?: boolean;
+  maxImageSize?: number;
   maxRetries?: number;
   maxTesseractWorkers?: number;
   model?: ModelOptions | string;
@@ -30,6 +33,7 @@ export interface ZeroxArgs {
   openaiAPIKey?: string;
   outputDir?: string;
   pagesToConvertAsImages?: number | number[];
+  prompt?: string;
   schema?: Record<string, unknown>;
   tempDir?: string;
   trimEdges?: boolean;
@@ -125,6 +129,7 @@ export interface CompletionArgs {
   image: Buffer;
   maintainFormat: boolean;
   priorPage: string;
+  prompt?: string;
 }
 
 export interface CompletionResponse {
@@ -152,6 +157,7 @@ export interface ExtractionArgs {
     scheduler: Tesseract.Scheduler | null;
     trimEdges?: boolean;
   };
+  prompt?: string;
   schema: Record<string, unknown>;
 }
 
@@ -217,6 +223,12 @@ export interface Summary {
     successful: number;
     failed: number;
   } | null;
+}
+
+export interface ExcelSheetContent {
+  sheetName: string;
+  content: string;
+  contentLength: number;
 }
 
 export interface LangfuseMetadata {
