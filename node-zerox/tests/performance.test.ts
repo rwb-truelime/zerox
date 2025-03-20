@@ -1,7 +1,11 @@
+import dotenv from "dotenv";
+dotenv.config();
+
 import path from "path";
 import fs from "fs-extra";
 import { zerox } from "../src";
 import { ModelOptions } from "../src/types";
+import { fetchSystemPrompt } from "../src/constants";
 
 const MOCK_OPENAI_TIME = 5000;
 const TEST_FILES_DIR = path.join(__dirname, "data");
@@ -13,7 +17,7 @@ interface TestResult {
   avgTimePerPage: number;
 }
 
-// Mock the getCompletion function
+// Mock the getCompletion function and Langfuse configuration
 jest.mock("../src/models/openAI", () => ({
   getCompletion: jest.fn().mockImplementation(async () => {
     await new Promise((resolve) => setTimeout(resolve, MOCK_OPENAI_TIME));
@@ -26,10 +30,35 @@ jest.mock("../src/models/openAI", () => ({
   }),
 }));
 
+// Mock fetch for Langfuse API
+jest.mock('node-fetch', () => {
+  return jest.fn().mockImplementation(() => 
+    Promise.resolve({
+      ok: true,
+      status: 200,
+      json: () => Promise.resolve({
+        prompt: "You are a test system prompt. Follow these test instructions...",
+        name: "test-prompt",
+        version: 1,
+        isActive: true
+      })
+    })
+  );
+});
+
 describe("Zerox Performance Tests", () => {
   const allResults: TestResult[] = [];
 
   beforeAll(async () => {
+    // Set up Langfuse environment
+    process.env.LANGFUSE_HOST = 'https://mock.langfuse.com';
+    process.env.LANGFUSE_PUBLIC_KEY = 'mock-public-key';
+    process.env.LANGFUSE_SECRET_KEY = 'mock-secret-key';
+    process.env.LANGFUSE_PROMPT_NAME = 'mock-prompt';
+
+    // Fetch the system prompt before running tests
+    await fetchSystemPrompt();
+    
     // Ensure test directories exist
     await fs.ensureDir(TEST_FILES_DIR);
   });
