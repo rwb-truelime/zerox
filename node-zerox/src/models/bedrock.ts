@@ -69,25 +69,26 @@ export default class BedrockModel implements ModelInterface {
     options,
   }: MessageContentArgs): Promise<any> {
     const processImages = async (imagePaths: string[]) => {
-      return Promise.all(
+      const nestedImages = await Promise.all(
         imagePaths.map(async (imagePath) => {
           const imageBuffer = await fs.readFile(imagePath);
-          const correctedBuffer = await cleanupImage({
+          const buffers = await cleanupImage({
             correctOrientation: options?.correctOrientation ?? false,
             imageBuffer,
             scheduler: options?.scheduler ?? null,
             trimEdges: options?.trimEdges ?? false,
           });
-          return {
+          return buffers.map((buffer) => ({
             source: {
-              data: encodeImageToBase64(correctedBuffer),
+              data: encodeImageToBase64(buffer),
               media_type: "image/png",
               type: "base64",
             },
             type: "image",
-          };
+          }));
         })
       );
+      return nestedImages.flat();
     };
 
     if (Array.isArray(input)) {
@@ -104,7 +105,7 @@ export default class BedrockModel implements ModelInterface {
   }
 
   private async handleOCR({
-    image,
+    buffers,
     maintainFormat,
     priorPage,
     prompt,
@@ -121,20 +122,15 @@ export default class BedrockModel implements ModelInterface {
     }
 
     // Add image to request
-    const base64Image = await encodeImageToBase64(image);
-    messages.push({
-      role: "user",
-      content: [
-        {
-          type: "image",
-          source: {
-            data: base64Image,
-            media_type: "image/png",
-            type: "base64",
-          },
-        },
-      ],
-    });
+    const imageContents = buffers.map((buffer) => ({
+      source: {
+        data: encodeImageToBase64(buffer),
+        media_type: "image/png",
+        type: "base64",
+      },
+      type: "image",
+    }));
+    messages.push({ role: "user", content: imageContents });
 
     try {
       const body = {

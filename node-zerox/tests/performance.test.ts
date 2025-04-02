@@ -7,7 +7,7 @@ import { zerox } from "../src";
 import { ModelOptions } from "../src/types";
 import { fetchSystemPrompt } from "../src/constants";
 
-const MOCK_OPENAI_TIME = 5000;
+const MOCK_OPENAI_TIME = 0;
 const TEST_FILES_DIR = path.join(__dirname, "data");
 
 interface TestResult {
@@ -17,18 +17,27 @@ interface TestResult {
   avgTimePerPage: number;
 }
 
-// Mock the getCompletion function and Langfuse configuration
-jest.mock("../src/models/openAI", () => ({
-  getCompletion: jest.fn().mockImplementation(async () => {
-    await new Promise((resolve) => setTimeout(resolve, MOCK_OPENAI_TIME));
-    return {
-      content:
-        "# Mocked Content\n\nThis is a mocked response for testing purposes.",
-      inputTokens: 100,
-      outputTokens: 50,
-    };
-  }),
-}));
+// Mock the OpenAIModel class and Langfuse configuration
+jest.mock("../src/models/openAI", () => {
+  return {
+    __esModule: true,
+    default: class MockOpenAIModel {
+      constructor() {
+        // Mock constructor
+      }
+
+      async getCompletion() {
+        await new Promise((resolve) => setTimeout(resolve, MOCK_OPENAI_TIME));
+        return {
+          content:
+            "# Mocked Content\n\nThis is a mocked response for testing purposes.",
+          inputTokens: 100,
+          outputTokens: 50,
+        };
+      }
+    },
+  };
+});
 
 // Mock fetch for Langfuse API
 jest.mock('node-fetch', () => {

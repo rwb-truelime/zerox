@@ -1,3 +1,5 @@
+export const ASPECT_RATIO_THRESHOLD = 5;
+
 import fetch from 'node-fetch';
 import { LangfuseMetadata } from './types';
 

@@ -60,25 +60,24 @@ export default class AzureModel implements ModelInterface {
     options,
   }: MessageContentArgs): Promise<any> {
     const processImages = async (imagePaths: string[]) => {
-      return Promise.all(
+      const nestedImages = await Promise.all(
         imagePaths.map(async (imagePath) => {
           const imageBuffer = await fs.readFile(imagePath);
-          const correctedBuffer = await cleanupImage({
+          const buffers = await cleanupImage({
             correctOrientation: options?.correctOrientation ?? false,
             imageBuffer,
             scheduler: options?.scheduler ?? null,
             trimEdges: options?.trimEdges ?? false,
           });
-          return {
+          return buffers.map((buffer) => ({
             image_url: {
-              url: `data:image/png;base64,${encodeImageToBase64(
-                correctedBuffer
-              )}`,
+              url: `data:image/png;base64,${encodeImageToBase64(buffer)}`,
             },
             type: "image_url",
-          };
+          }));
         })
       );
+      return nestedImages.flat();
     };
 
     if (Array.isArray(input)) {
@@ -95,7 +94,7 @@ export default class AzureModel implements ModelInterface {
   }
 
   private async handleOCR({
-    image,
+    buffers,
     maintainFormat,
     priorPage,
     prompt,
@@ -115,16 +114,13 @@ export default class AzureModel implements ModelInterface {
     }
 
     // Add image to request
-    const base64Image = await encodeImageToBase64(image);
-    messages.push({
-      role: "user",
-      content: [
-        {
-          type: "image_url",
-          image_url: { url: `data:image/png;base64,${base64Image}` },
-        },
-      ],
-    });
+    const imageContents = buffers.map((buffer) => ({
+      type: "image_url",
+      image_url: {
+        url: `data:image/png;base64,${encodeImageToBase64(buffer)}`,
+      },
+    }));
+    messages.push({ role: "user", content: imageContents });
 
     try {
       const response = await this.client.chat.completions.create({

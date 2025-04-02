@@ -56,23 +56,24 @@ export default class GoogleModel implements ModelInterface {
     options,
   }: MessageContentArgs): Promise<any> {
     const processImages = async (imagePaths: string[]) => {
-      return Promise.all(
+      const nestedImages = await Promise.all(
         imagePaths.map(async (imagePath) => {
           const imageBuffer = await fs.readFile(imagePath);
-          const correctedBuffer = await cleanupImage({
+          const buffers = await cleanupImage({
             correctOrientation: options?.correctOrientation ?? false,
             imageBuffer,
             scheduler: options?.scheduler ?? null,
             trimEdges: options?.trimEdges ?? false,
           });
-          return {
+          return buffers.map((buffer) => ({
             inlineData: {
-              data: encodeImageToBase64(correctedBuffer),
+              data: encodeImageToBase64(buffer),
               mimeType: "image/png",
             },
-          };
+          }));
         })
       );
+      return nestedImages.flat();
     };
 
     if (Array.isArray(input)) {
@@ -89,7 +90,7 @@ export default class GoogleModel implements ModelInterface {
   }
 
   private async handleOCR({
-    image,
+    buffers,
     maintainFormat,
     priorPage,
     prompt,
@@ -111,14 +112,13 @@ export default class GoogleModel implements ModelInterface {
     }
 
     // Add image to request
-    const base64Image = await encodeImageToBase64(image);
-    const imageData = {
+    const imageContents = buffers.map((buffer) => ({
       inlineData: {
-        data: base64Image,
+        data: encodeImageToBase64(buffer),
         mimeType: "image/png",
       },
-    };
-    promptParts.push(imageData);
+    }));
+    promptParts.push(...imageContents);
 
     try {
       const result = await generativeModel.generateContent({
