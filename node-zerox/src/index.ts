@@ -42,6 +42,8 @@ import {
 } from "./types";
 import { NUM_STARTING_WORKERS, fetchSystemPrompt, LANGFUSE_METADATA } from "./constants";
 
+export * from './types';
+
 export const zerox = async ({
   cleanup = true,
   concurrency = 10,
