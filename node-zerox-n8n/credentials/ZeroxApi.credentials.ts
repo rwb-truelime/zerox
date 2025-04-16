@@ -1,84 +1,76 @@
-import { ICredentialType, INodeProperties } from "n8n-workflow";
+import { ICredentialType, INodeProperties } from 'n8n-workflow';
 
 export class ZeroxApi implements ICredentialType {
-  name = "zeroxApi";
-  displayName = "Zerox API";
-  documentationUrl = "https://github.com/getomni-ai/zerox";
-  properties: INodeProperties[] = [
-    // OpenAI credentials
-    {
-      displayName: "OpenAI API Key",
-      name: "openaiApiKey",
-      type: "string",
-      typeOptions: {
-        password: true,
-      },
-      default: "",
-      description: "OpenAI API key for GPT models",
-    },
-    // Azure credentials
-    {
-      displayName: "Azure API Key",
-      name: "azureApiKey",
-      type: "string",
-      typeOptions: {
-        password: true,
-      },
-      default: "",
-      description: "Azure API key for Azure OpenAI models",
-    },
-    {
-      displayName: "Azure Endpoint",
-      name: "azureEndpoint",
-      type: "string",
-      default: "",
-      description: "Azure endpoint URL for Azure OpenAI models",
-    },
-    // Google credentials
-    {
-      displayName: "Google API Key",
-      name: "googleApiKey",
-      type: "string",
-      typeOptions: {
-        password: true,
-      },
-      default: "",
-      description: "Google API key for Gemini models",
-    },
-    // AWS Bedrock credentials
-    {
-      displayName: "AWS Bedrock Access Key ID",
-      name: "bedrockAccessKeyId",
-      type: "string",
-      default: "",
-      description: "AWS access key ID for Bedrock models",
-    },
-    {
-      displayName: "AWS Bedrock Secret Access Key",
-      name: "bedrockSecretAccessKey",
-      type: "string",
-      typeOptions: {
-        password: true,
-      },
-      default: "",
-      description: "AWS secret access key for Bedrock models",
-    },
-    {
-      displayName: "AWS Bedrock Region",
-      name: "bedrockRegion",
-      type: "string",
-      default: "us-east-1",
-      description: "AWS region for Bedrock models",
-    },
-    {
-      displayName: "AWS Bedrock Session Token (Optional)",
-      name: "bedrockSessionToken",
-      type: "string",
-      typeOptions: {
-        password: true,
-      },
-      default: "",
-      description: "AWS session token for temporary credentials (optional)",
-    },
-  ];
+    name = 'zeroxApi';
+    displayName = 'Zerox API Credentials';
+    documentationUrl = 'https://github.com/truelime-dev/zerox-truelime'; // Replace with actual docs URL if available
+    properties: INodeProperties[] = [
+        // OpenAI
+        {
+            displayName: 'OpenAI API Key',
+            name: 'openaiApiKey',
+            type: 'string',
+            typeOptions: { password: true },
+            default: '',
+            description: 'Your OpenAI API key',
+        },
+        // Azure
+        {
+            displayName: 'Azure API Key',
+            name: 'azureApiKey',
+            type: 'string',
+            typeOptions: { password: true },
+            default: '',
+            description: 'Your Azure OpenAI API key',
+        },
+        {
+            displayName: 'Azure Endpoint',
+            name: 'azureEndpoint',
+            type: 'string',
+            default: '',
+            placeholder: 'https://YOUR_RESOURCE_NAME.openai.azure.com/',
+            description: 'Your Azure OpenAI endpoint URL',
+        },
+        // Google
+        {
+            displayName: 'Google API Key',
+            name: 'googleApiKey',
+            type: 'string',
+            typeOptions: { password: true },
+            default: '',
+            description: 'Your Google AI (Gemini) API key',
+        },
+        // AWS Bedrock
+        {
+            displayName: 'AWS Access Key ID',
+            name: 'bedrockAccessKeyId',
+            type: 'string',
+            default: '',
+            description: 'Your AWS Access Key ID for Bedrock',
+        },
+        {
+            displayName: 'AWS Secret Access Key',
+            name: 'bedrockSecretAccessKey',
+            type: 'string',
+            typeOptions: { password: true },
+            default: '',
+            description: 'Your AWS Secret Access Key for Bedrock',
+        },
+        {
+            displayName: 'AWS Region',
+            name: 'bedrockRegion',
+            type: 'string',
+            default: '',
+            placeholder: 'us-east-1',
+            description: 'The AWS region where your Bedrock models are hosted',
+        },
+        {
+            displayName: 'AWS Session Token (Optional)',
+            name: 'bedrockSessionToken',
+            type: 'string',
+            typeOptions: { password: true },
+            default: '',
+            description: 'Optional AWS Session Token (for temporary credentials)',
+        },
+    ];
 }
