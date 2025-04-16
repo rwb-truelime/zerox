@@ -1,7 +1,7 @@
 {
-  "name": "zerox-truelime",
+  "name": "limescape-docs-processor",
   "version": "1.1.17",
-  "description": "ocr documents using llm models",
+  "description": "Get text and tables from documents using llm models",
   "main": "node-zerox/dist/index.js",
   "scripts": {
     "clean": "rm -rf node-zerox/dist",
@@ -9,7 +9,7 @@
     "postinstall": "node node-zerox/scripts/install-dependencies.js",
     "prepublishOnly": "npm run build"
   },
-  "author": "Blom",
+  "author": "Rodger Blom",
   "license": "MIT",
   "files": [
     "node-zerox/dist",

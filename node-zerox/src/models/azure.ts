@@ -30,7 +30,7 @@ export default class AzureModel implements ModelInterface {
   ) {
     this.client = new AzureOpenAI({
       apiKey: credentials.apiKey,
-      apiVersion: "2024-10-21",
+      apiVersion: "2024-12-01-preview",
       deployment: model,
       endpoint: credentials.endpoint,
     });
