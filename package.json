@@ -11,6 +11,12 @@
   },
   "author": "Blom",
   "license": "MIT",
+  "files": [
+    "node-zerox/dist",
+    "node-zerox/scripts",
+    "README.md",
+    "LICENSE"
+  ],
   "dependencies": {
     "@aws-sdk/client-bedrock-runtime": "^3.734.0",
     "@google/generative-ai": "^0.21.0",
