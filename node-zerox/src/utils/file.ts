@@ -1,10 +1,8 @@
 import { convert } from "libreoffice-convert";
 import { exec } from "child_process";
-import { fromPath } from "pdf2pic";
 import { pipeline } from "stream/promises";
 import { promisify } from "util";
 import { v4 as uuidv4 } from "uuid";
-import { WriteImageResponse } from "pdf2pic/dist/types/convertResponse";
 import axios from "axios";
 import fileType from "file-type";
 import fs from "fs-extra";
