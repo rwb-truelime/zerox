@@ -29,17 +29,16 @@
     "heic-convert": "^2.1.0",
     "libreoffice-convert": "^1.6.1",
     "mime-types": "^2.1.35",
+    "node-fetch": "^3.3.2",
     "openai": "^4.95.0",
     "os": "^0.1.2",
     "p-limit": "^3.1.0",
     "path": "^0.12.7",
     "pdf-parse": "^1.1.1",
-    "pdf2pic": "^3.1.4",
     "sharp": "^0.33.5",
     "tesseract.js": "^5.1.1",
     "uuid": "^11.1.0",
-    "xlsx": "^0.18.5",
-    "node-fetch": "^3.3.2"
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/fs-extra": "^11.0.4",
