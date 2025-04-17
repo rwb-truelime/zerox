@@ -163,8 +163,11 @@ export const convertPdfToImages = async ({
     ? Math.max(imageHeight, Math.round(aspectRatio * imageHeight))
     : imageHeight;
 
+  // Hard cap at 300 DPI
+  const finalDensity = Math.min(imageDensity, 300);
+
   const options: ConvertPdfOptions = {
-    density: imageDensity,
+    density: finalDensity,
     format: "png",
     height: adjustedHeight,
     preserveAspectRatio: true,
@@ -172,28 +175,15 @@ export const convertPdfToImages = async ({
     savePath: tempDir,
   };
 
+  // Directly use the Poppler fallback as pdf2pic seems unreliable here
   try {
-    try {
-      const storeAsImage = fromPath(pdfPath, options);
-      const convertResults: WriteImageResponse[] = await storeAsImage.bulk(
-        pagesToConvertAsImages
-      );
-      // Validate that all pages were converted
-      return convertResults.map((result) => {
-        if (!result.page || !result.path) {
-          throw new Error("Could not identify page data");
-        }
-        return result.path;
-      });
-    } catch (err) {
-      return await convertPdfWithPoppler(
-        pagesToConvertAsImages,
-        pdfPath,
-        options
-      );
-    }
+    return await convertPdfWithPoppler(
+      pagesToConvertAsImages,
+      pdfPath,
+      options
+    );
   } catch (err) {
-    console.error("Error during PDF conversion:", err);
+    console.error("Error during PDF conversion with Poppler:", err);
     throw err;
   }
 };
@@ -278,7 +268,8 @@ const convertPdfWithPoppler = async (
 
   const run = async (from?: number, to?: number) => {
     const pageArgs = from && to ? `-f ${from} -l ${to}` : "";
-    const cmd = `pdftoppm -${format} -r ${density} -scale-to-y ${height} -scale-to-x -1 ${pageArgs} "${pdfPath}" "${outputPrefix}"`;
+    // Ensure density and height are passed correctly
+    const cmd = `pdftoppm -${format} -r ${density || 300} -scale-to-y ${height || -1} -scale-to-x -1 ${pageArgs} "${pdfPath}" "${outputPrefix}"`;
     await execAsync(cmd);
   };
 
