@@ -78,7 +78,38 @@ export const zerox = async ({
   tempDir = os.tmpdir(),
   trimEdges = true,
 }: ZeroxArgs): Promise<ZeroxOutput> => {
-  console.log("Starting Zerox process...");
+  console.log("Starting Zerox process with parameters:");
+  console.log(`  File Path: ${filePath}`);
+  console.log(`  Cleanup: ${cleanup}`);
+  console.log(`  Concurrency: ${concurrency}`);
+  console.log(`  Correct Orientation: ${correctOrientation}`);
+  console.log(`  Custom Model Function Provided: ${!!customModelFunction}`);
+  console.log(`  Direct Image Extraction: ${directImageExtraction}`);
+  console.log(`  Enable Hybrid Extraction: ${enableHybridExtraction}`);
+  console.log(`  Error Mode: ${errorMode}`);
+  console.log(`  Extraction LLM Params Provided: ${!!extractionLlmParams && Object.keys(extractionLlmParams).length > 0}`);
+  console.log(`  Extraction Model: ${extractionModel}`);
+  console.log(`  Extraction Model Provider: ${extractionModelProvider}`);
+  console.log(`  Extraction Prompt Provided: ${!!extractionPrompt}`);
+  console.log(`  Extract Only: ${extractOnly}`);
+  console.log(`  Extract Per Page: ${extractPerPage}`);
+  console.log(`  Image Density: ${imageDensity}`);
+  console.log(`  Image Height: ${imageHeight}`);
+  console.log(`  LLM Params Provided: ${!!llmParams && Object.keys(llmParams).length > 0}`);
+  console.log(`  Maintain Format: ${maintainFormat}`);
+  console.log(`  Max Image Size: ${maxImageSize}`);
+  console.log(`  Max Retries: ${maxRetries}`);
+  console.log(`  Max Tesseract Workers: ${maxTesseractWorkers}`);
+  console.log(`  Model: ${model}`);
+  console.log(`  Model Provider: ${modelProvider}`);
+  console.log(`  OpenAI API Key Provided: ${!!openaiAPIKey}`); // Log presence, not value
+  console.log(`  Output Directory: ${outputDir ? outputDir : 'Not specified'}`);
+  console.log(`  Pages to Convert As Images: ${pagesToConvertAsImages}`);
+  console.log(`  Prompt Provided: ${!!prompt}`);
+  console.log(`  Schema Provided: ${!!schema}`);
+  console.log(`  Temp Directory: ${tempDir}`);
+  console.log(`  Trim Edges: ${trimEdges}`);
+
   let extracted: Record<string, unknown> | null = null;
 
   let extractedLogprobs: LogprobPage[] = [];
