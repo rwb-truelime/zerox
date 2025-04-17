@@ -15,6 +15,8 @@ node_modules/
 *.rar
 *.7z
 
+pnpm-*.yaml
+
 # Ignore output directories
 dist/
 lib-cov/
