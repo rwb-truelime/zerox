@@ -56,7 +56,11 @@ async function main() {
 
         // Compare expected keywords with OCR output
         const keywordCounts = compareKeywords(
-          ocrResult.pages.map(page => ({ content: page.content || '' })),
+          ocrResult.pages.map(page => ({
+            content: page.content || '',
+            page: page.page || 0,
+            status: page.status || 'success'
+          })),
           testInput.expectedKeywords
         );
 
