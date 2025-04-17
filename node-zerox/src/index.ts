@@ -40,7 +40,7 @@ import {
   ZeroxArgs,
   ZeroxOutput,
 } from "./types";
-import { NUM_STARTING_WORKERS, fetchSystemPrompt, LANGFUSE_METADATA } from "./constants";
+import { NUM_STARTING_WORKERS } from "./constants";
 
 export * from './types';
 
@@ -79,7 +79,6 @@ export const zerox = async ({
   trimEdges = true,
 }: ZeroxArgs): Promise<ZeroxOutput> => {
   let extracted: Record<string, unknown> | null = null;
-  await fetchSystemPrompt();
 
   let extractedLogprobs: LogprobPage[] = [];
   let inputTokenCount: number = 0;
@@ -613,7 +612,6 @@ export const zerox = async ({
             }
           : null,
       },
-      langfuse_metadata: LANGFUSE_METADATA,
     };
   } finally {
     if (correctOrientation && scheduler) {

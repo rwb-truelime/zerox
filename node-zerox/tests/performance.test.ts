@@ -2,10 +2,8 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import path from "path";
-import fs from "fs-extra";
 import { zerox } from "../src";
 import { ModelOptions } from "../src/types";
-import { fetchSystemPrompt } from "../src/constants";
 
 const MOCK_OPENAI_TIME = 0;
 const TEST_FILES_DIR = path.join(__dirname, "data");
@@ -17,7 +15,7 @@ interface TestResult {
   avgTimePerPage: number;
 }
 
-// Mock the OpenAIModel class and Langfuse configuration
+// Mock the OpenAIModel class
 jest.mock("../src/models/openAI", () => {
   return {
     __esModule: true,
@@ -39,9 +37,9 @@ jest.mock("../src/models/openAI", () => {
   };
 });
 
-// Mock fetch for Langfuse API
+// Mock fetch
 jest.mock('node-fetch', () => {
-  return jest.fn().mockImplementation(() => 
+  return jest.fn().mockImplementation(() =>
     Promise.resolve({
       ok: true,
       status: 200,
@@ -57,20 +55,6 @@ jest.mock('node-fetch', () => {
 
 describe("Zerox Performance Tests", () => {
   const allResults: TestResult[] = [];
-
-  beforeAll(async () => {
-    // Set up Langfuse environment
-    process.env.LANGFUSE_HOST = 'https://mock.langfuse.com';
-    process.env.LANGFUSE_PUBLIC_KEY = 'mock-public-key';
-    process.env.LANGFUSE_SECRET_KEY = 'mock-secret-key';
-    process.env.LANGFUSE_PROMPT_NAME = 'mock-prompt';
-
-    // Fetch the system prompt before running tests
-    await fetchSystemPrompt();
-    
-    // Ensure test directories exist
-    await fs.ensureDir(TEST_FILES_DIR);
-  });
 
   const runPerformanceTest = async (numPages: number, concurrency: number) => {
     const filePath = path.join(TEST_FILES_DIR, `${numPages}-pages.pdf`);
