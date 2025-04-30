@@ -8,6 +8,7 @@ import "./handleWarnings";
 import {
   addWorkersToTesseractScheduler,
   checkIsCFBFile,
+  checkIsPdfFile,
   cleanupImage,
   CompletionProcessor,
   compressImage,
@@ -232,8 +233,8 @@ export const zerox = async ({
       } else {
         let pdfPath: string;
         const isCFBFile = await checkIsCFBFile(localPath);
-        if (extension === ".pdf" && !isCFBFile) {
-          console.log("File is a standard PDF.");
+        const isPdf = await checkIsPdfFile(localPath);
+        if ((extension === ".pdf" || isPdf) && !isCFBFile) {
           pdfPath = localPath;
         } else {
           console.log("Converting file to PDF:", localPath);
