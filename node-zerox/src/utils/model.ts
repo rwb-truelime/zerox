@@ -4,6 +4,8 @@ import {
   LLMParams,
   ModelProvider,
   OperationMode,
+  ProcessedCompletionResponse,
+  ProcessedExtractionResponse,
 } from "../types";
 import { formatMarkdown } from "./common";
 
@@ -22,34 +24,44 @@ const isExtractionResponse = (
 };
 
 export class CompletionProcessor {
-  static process(
-    mode: OperationMode,
+  static process<T extends OperationMode>(
+    mode: T,
     response: CompletionResponse | ExtractionResponse
-  ): (CompletionResponse & { contentLength: number }) | ExtractionResponse {
+  ): T extends OperationMode.EXTRACTION
+    ? ProcessedExtractionResponse
+    : ProcessedCompletionResponse {
+    const { logprobs, ...responseWithoutLogprobs } = response;
     if (isCompletionResponse(mode, response)) {
       const content = response.content;
       return {
-        ...response,
+        ...responseWithoutLogprobs,
         content:
           typeof content === "string" ? formatMarkdown(content) : content,
         contentLength: response.content?.length || 0,
-      };
+      } as T extends OperationMode.EXTRACTION
+        ? ProcessedExtractionResponse
+        : ProcessedCompletionResponse;
     }
     if (isExtractionResponse(mode, response)) {
       const extracted = response.extracted;
       return {
-        ...response,
+        ...responseWithoutLogprobs,
         extracted:
           typeof extracted === "object" ? extracted : JSON.parse(extracted),
-      };
+      } as T extends OperationMode.EXTRACTION
+        ? ProcessedExtractionResponse
+        : ProcessedCompletionResponse;
     }
-    return response;
+    return responseWithoutLogprobs as T extends OperationMode.EXTRACTION
+      ? ProcessedExtractionResponse
+      : ProcessedCompletionResponse;
   }
 }
 
 const providerDefaultParams: Record<ModelProvider | string, LLMParams> = {
   [ModelProvider.AZURE]: {
     frequencyPenalty: 0,
+    logprobs: false,
     maxTokens: 4000,
     presencePenalty: 0,
     temperature: 0,
@@ -69,6 +81,7 @@ const providerDefaultParams: Record<ModelProvider | string, LLMParams> = {
   },
   [ModelProvider.OPENAI]: {
     frequencyPenalty: 0,
+    logprobs: false,
     maxTokens: 4000,
     presencePenalty: 0,
     temperature: 0,
@@ -76,8 +89,8 @@ const providerDefaultParams: Record<ModelProvider | string, LLMParams> = {
   },
 };
 
-export const validateLLMParams = (
-  params: Partial<LLMParams>,
+export const validateLLMParams = <T extends LLMParams>(
+  params: Partial<T>,
   provider: ModelProvider | string
 ): LLMParams => {
   const defaultParams = providerDefaultParams[provider];
@@ -86,17 +99,19 @@ export const validateLLMParams = (
     throw new Error(`Unsupported model provider: ${provider}`);
   }
 
-  const validKeys = Object.keys(defaultParams);
-  for (const key of Object.keys(params)) {
-    if (!validKeys.includes(key)) {
+  const validKeys = new Set(Object.keys(defaultParams));
+  for (const [key, value] of Object.entries(params)) {
+    if (!validKeys.has(key)) {
       throw new Error(
-        `Invalid LLM parameter for ${provider}: ${key}. Valid parameters are: ${validKeys.join(
-          ", "
-        )}`
+        `Invalid LLM parameter for ${provider}: ${key}. Valid parameters are: ${Array.from(
+          validKeys
+        ).join(", ")}`
       );
     }
-    if (typeof params[key as keyof LLMParams] !== "number") {
-      throw new Error(`Value for '${key}' must be a number`);
+
+    const expectedType = typeof defaultParams[key as keyof LLMParams];
+    if (typeof value !== expectedType) {
+      throw new Error(`Value for '${key}' must be a ${expectedType}`);
     }
   }
 

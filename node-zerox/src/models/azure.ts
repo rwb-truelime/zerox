@@ -5,21 +5,26 @@ import {
   CompletionResponse,
   ExtractionArgs,
   ExtractionResponse,
+  MessageContentArgs,
   ModelInterface,
   OperationMode,
 } from "../types";
 import { AzureOpenAI } from "openai";
-import { convertKeysToSnakeCase, encodeImageToBase64 } from "../utils";
+import {
+  cleanupImage,
+  convertKeysToCamelCase,
+  convertKeysToSnakeCase,
+  encodeImageToBase64,
+} from "../utils";
 import { CONSISTENCY_PROMPT, SYSTEM_PROMPT_BASE } from "../constants";
+import fs from "fs-extra";
 
 export default class AzureModel implements ModelInterface {
   private client: AzureOpenAI;
-  private mode: OperationMode;
   private llmParams?: Partial<AzureLLMParams>;
 
   constructor(
     credentials: AzureCredentials,
-    mode: OperationMode,
     model: string,
     llmParams?: Partial<AzureLLMParams>
   ) {
@@ -29,11 +34,11 @@ export default class AzureModel implements ModelInterface {
       deployment: model,
       endpoint: credentials.endpoint,
     });
-    this.mode = mode;
     this.llmParams = llmParams;
   }
 
   async getCompletion(
+    mode: OperationMode,
     params: CompletionArgs | ExtractionArgs
   ): Promise<CompletionResponse | ExtractionResponse> {
     const modeHandlers = {
@@ -42,20 +47,59 @@ export default class AzureModel implements ModelInterface {
       [OperationMode.OCR]: () => this.handleOCR(params as CompletionArgs),
     };
 
-    const handler = modeHandlers[this.mode];
+    const handler = modeHandlers[mode];
     if (!handler) {
-      throw new Error(`Unsupported operation mode: ${this.mode}`);
+      throw new Error(`Unsupported operation mode: ${mode}`);
     }
 
     return await handler();
   }
 
+  private async createMessageContent({
+    input,
+    options,
+  }: MessageContentArgs): Promise<any> {
+    const processImages = async (imagePaths: string[]) => {
+      const nestedImages = await Promise.all(
+        imagePaths.map(async (imagePath) => {
+          const imageBuffer = await fs.readFile(imagePath);
+          const buffers = await cleanupImage({
+            correctOrientation: options?.correctOrientation ?? false,
+            imageBuffer,
+            scheduler: options?.scheduler ?? null,
+            trimEdges: options?.trimEdges ?? false,
+          });
+          return buffers.map((buffer) => ({
+            image_url: {
+              url: `data:image/png;base64,${encodeImageToBase64(buffer)}`,
+            },
+            type: "image_url",
+          }));
+        })
+      );
+      return nestedImages.flat();
+    };
+
+    if (Array.isArray(input)) {
+      return processImages(input);
+    }
+
+    if (typeof input === "string") {
+      return [{ text: input, type: "text" }];
+    }
+
+    const { imagePaths, text } = input;
+    const images = await processImages(imagePaths);
+    return [...images, { text, type: "text" }];
+  }
+
   private async handleOCR({
-    image,
+    buffers,
     maintainFormat,
     priorPage,
+    prompt,
   }: CompletionArgs): Promise<CompletionResponse> {
-    const systemPrompt = SYSTEM_PROMPT_BASE;
+    const systemPrompt = prompt || SYSTEM_PROMPT_BASE;
 
     // Default system message
     const messages: any = [{ role: "system", content: systemPrompt }];
@@ -70,16 +114,13 @@ export default class AzureModel implements ModelInterface {
     }
 
     // Add image to request
-    const base64Image = await encodeImageToBase64(image);
-    messages.push({
-      role: "user",
-      content: [
-        {
-          type: "image_url",
-          image_url: { url: `data:image/png;base64,${base64Image}` },
-        },
-      ],
-    });
+    const imageContents = buffers.map((buffer) => ({
+      type: "image_url",
+      image_url: {
+        url: `data:image/png;base64,${encodeImageToBase64(buffer)}`,
+      },
+    }));
+    messages.push({ role: "user", content: imageContents });
 
     try {
       const response = await this.client.chat.completions.create({
@@ -88,11 +129,19 @@ export default class AzureModel implements ModelInterface {
         ...convertKeysToSnakeCase(this.llmParams ?? null),
       });
 
-      return {
+      const result: CompletionResponse = {
         content: response.choices[0].message.content || "",
         inputTokens: response.usage?.prompt_tokens || 0,
         outputTokens: response.usage?.completion_tokens || 0,
       };
+
+      if (this.llmParams?.logprobs) {
+        result["logprobs"] = convertKeysToCamelCase(
+          response.choices[0].logprobs
+        )?.content;
+      }
+
+      return result;
     } catch (err) {
       console.error("Error in Azure completion", err);
       throw err;
@@ -100,23 +149,23 @@ export default class AzureModel implements ModelInterface {
   }
 
   private async handleExtraction({
-    image,
+    input,
+    options,
+    prompt,
     schema,
   }: ExtractionArgs): Promise<ExtractionResponse> {
-    const base64Image = await encodeImageToBase64(image);
-    const messages: any = [
-      {
-        role: "user",
-        content: [
-          {
-            type: "image_url",
-            image_url: { url: `data:image/png;base64,${base64Image}` },
-          },
-        ],
-      },
-    ];
-
     try {
+      const messages: any = [];
+
+      if (prompt) {
+        messages.push({ role: "system", content: prompt });
+      }
+
+      messages.push({
+        role: "user",
+        content: await this.createMessageContent({ input, options }),
+      });
+
       const response = await this.client.chat.completions.create({
         messages,
         model: "",
@@ -127,11 +176,19 @@ export default class AzureModel implements ModelInterface {
         ...convertKeysToSnakeCase(this.llmParams ?? null),
       });
 
-      return {
+      const result: ExtractionResponse = {
         extracted: JSON.parse(response.choices[0].message.content || ""),
         inputTokens: response.usage?.prompt_tokens || 0,
         outputTokens: response.usage?.completion_tokens || 0,
       };
+
+      if (this.llmParams?.logprobs) {
+        result["logprobs"] = convertKeysToCamelCase(
+          response.choices[0].logprobs
+        )?.content;
+      }
+
+      return result;
     } catch (err) {
       console.error("Error in Azure completion", err);
       throw err;

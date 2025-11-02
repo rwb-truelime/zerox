@@ -23,7 +23,7 @@ export const fetchSystemPrompt = async (): Promise<void> => {
   }
 
   const auth = Buffer.from(`${publicKey}:${secretKey}`).toString('base64');
-  
+
   const response = await fetch(
     `${host}/api/public/v2/prompts/${promptName}`,
     {
