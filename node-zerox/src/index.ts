@@ -41,7 +41,10 @@ import {
   ZeroxArgs,
   ZeroxOutput,
 } from "./types";
-import { NUM_STARTING_WORKERS, fetchSystemPrompt, LANGFUSE_METADATA } from "./constants";
+import { NUM_STARTING_WORKERS} from "./constants";
+
+// Re-export types!
+export * from './types';
 
 export const zerox = async ({
   cleanup = true,

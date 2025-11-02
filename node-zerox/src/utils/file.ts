@@ -1,10 +1,8 @@
 import { convert } from "libreoffice-convert";
 import { exec } from "child_process";
-import { fromPath } from "pdf2pic";
 import { pipeline } from "stream/promises";
 import { promisify } from "util";
 import { v4 as uuidv4 } from "uuid";
-import { WriteImageResponse } from "pdf2pic/dist/types/convertResponse";
 import axios from "axios";
 import fileType from "file-type";
 import fs from "fs-extra";
@@ -107,8 +105,16 @@ export const convertHeicToJpeg = async ({
 }): Promise<string> => {
   try {
     const inputBuffer = await fs.readFile(localPath);
+    // heic-convert type definitions expect ArrayBufferLike. Node Buffer's underlying
+    // ArrayBuffer may be larger than the slice we need, so create a proper slice.
+    const arrayBuffer = inputBuffer.buffer.slice(
+      inputBuffer.byteOffset,
+      inputBuffer.byteOffset + inputBuffer.byteLength
+    );
     const outputBuffer = await heicConvert({
-      buffer: inputBuffer,
+      // Cast because library runtime accepts Buffer/ArrayBuffer, but types are strict.
+      // We intentionally provide the minimal ArrayBuffer view.
+      buffer: arrayBuffer as ArrayBufferLike,
       format: "JPEG",
       quality: 1,
     });
@@ -117,7 +123,8 @@ export const convertHeicToJpeg = async ({
       tempDir,
       `${path.basename(localPath, ".heic")}.jpg`
     );
-    await fs.writeFile(jpegPath, Buffer.from(outputBuffer));
+    // outputBuffer can be Uint8Array or Buffer; normalize to Buffer for write
+    await fs.writeFile(jpegPath, Buffer.isBuffer(outputBuffer) ? outputBuffer : Buffer.from(outputBuffer));
     return jpegPath;
   } catch (err) {
     console.error(`Error converting .heic to .jpeg:`, err);
@@ -171,6 +178,9 @@ export const convertPdfToImages = async ({
     ? Math.max(imageHeight, Math.round(aspectRatio * imageHeight))
     : imageHeight;
 
+  // Hard cap at 300 DPI
+  const finalDensity = Math.min(imageDensity, 300);
+
   const options: ConvertPdfOptions = {
     density: imageDensity,
     format: imageFormat,
@@ -180,28 +190,15 @@ export const convertPdfToImages = async ({
     savePath: tempDir,
   };
 
+  // Directly use the Poppler fallback as pdf2pic seems unreliable here
   try {
-    try {
-      const storeAsImage = fromPath(pdfPath, options);
-      const convertResults: WriteImageResponse[] = await storeAsImage.bulk(
-        pagesToConvertAsImages
-      );
-      // Validate that all pages were converted
-      return convertResults.map((result) => {
-        if (!result.page || !result.path) {
-          throw new Error("Could not identify page data");
-        }
-        return result.path;
-      });
-    } catch (err) {
-      return await convertPdfWithPoppler(
-        pagesToConvertAsImages,
-        pdfPath,
-        options
-      );
-    }
+    return await convertPdfWithPoppler(
+      pagesToConvertAsImages,
+      pdfPath,
+      options
+    );
   } catch (err) {
-    console.error("Error during PDF conversion:", err);
+    console.error("Error during PDF conversion with Poppler:", err);
     throw err;
   }
 };
@@ -286,7 +283,8 @@ const convertPdfWithPoppler = async (
 
   const run = async (from?: number, to?: number) => {
     const pageArgs = from && to ? `-f ${from} -l ${to}` : "";
-    const cmd = `pdftoppm -${format} -r ${density} -scale-to-y ${height} -scale-to-x -1 ${pageArgs} "${pdfPath}" "${outputPrefix}"`;
+    // Ensure density and height are passed correctly
+    const cmd = `pdftoppm -${format} -r ${density || 300} -scale-to-y ${height || -1} -scale-to-x -1 ${pageArgs} "${pdfPath}" "${outputPrefix}"`;
     await execAsync(cmd);
   };
 
