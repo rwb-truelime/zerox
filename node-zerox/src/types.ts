@@ -71,6 +71,11 @@ export interface GoogleCredentials {
   apiKey: string;
 }
 
+export interface VertexCredentials {
+  serviceAccount: string | Record<string, string>;
+  location: string;
+}
+
 export interface OpenAICredentials {
   apiKey: string;
 }
@@ -79,6 +84,7 @@ export type ModelCredentials =
   | AzureCredentials
   | BedrockCredentials
   | GoogleCredentials
+  | VertexCredentials
   | OpenAICredentials;
 
 export enum ModelOptions {
@@ -91,24 +97,25 @@ export enum ModelOptions {
   BEDROCK_CLAUDE_3_SONNET_2024_02 = "anthropic.claude-3-sonnet-20240229-v1:0",
 
   // OpenAI GPT-4 Models
+  OPENAI_GPT_5_1 = "gpt-5.1",
+  OPENAI_GPT_5_1_MINI = "gpt-5.1-mini",
   OPENAI_GPT_4_1 = "gpt-4.1",
   OPENAI_GPT_4_1_MINI = "gpt-4.1-mini",
   OPENAI_GPT_4O = "gpt-4o",
   OPENAI_GPT_4O_MINI = "gpt-4o-mini",
 
   // Google Gemini Models
-  GOOGLE_GEMINI_1_5_FLASH = "gemini-1.5-flash",
-  GOOGLE_GEMINI_1_5_FLASH_8B = "gemini-1.5-flash-8b",
-  GOOGLE_GEMINI_1_5_PRO = "gemini-1.5-pro",
+  GOOGLE_GEMINI_3_PRO_PREVIEW = "gemini-3-pro-preview",
   GOOGLE_GEMINI_2_5_PRO = "gemini-2.5-pro",
-  GOOGLE_GEMINI_2_FLASH = "gemini-2.0-flash-001",
-  GOOGLE_GEMINI_2_FLASH_LITE = "gemini-2.0-flash-lite-preview-02-05",
+  GOOGLE_GEMINI_2_5_FLASH = "gemini-2.5-flash",
+  GOOGLE_GEMINI_2_5_FLASH_LITE = "gemini-2.5-flash-lite"
 }
 
 export enum ModelProvider {
   AZURE = "AZURE",
   BEDROCK = "BEDROCK",
   GOOGLE = "GOOGLE",
+  VERTEX = "VERTEX",
   OPENAI = "OPENAI",
 }
 

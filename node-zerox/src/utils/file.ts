@@ -4,12 +4,11 @@ import { pipeline } from "stream/promises";
 import { promisify } from "util";
 import { v4 as uuidv4 } from "uuid";
 import axios from "axios";
-import fileType from "file-type";
 import fs from "fs-extra";
 import heicConvert from "heic-convert";
 import mime from "mime-types";
 import path from "path";
-import pdf from "pdf-parse";
+import { PDFParse } from "pdf-parse";
 import util from "util";
 import xlsx from "xlsx";
 
@@ -85,7 +84,8 @@ export const downloadFile = async ({
 
 // Check if file is a Compound File Binary (legacy Office format)
 export const checkIsCFBFile = async (filePath: string): Promise<boolean> => {
-  const type = await fileType.fromFile(filePath);
+  const { fileTypeFromFile } = await import("file-type");
+  const type = await fileTypeFromFile(filePath);
   return type?.mime === "application/x-cfb";
 };
 
@@ -158,7 +158,7 @@ export const convertFileToPdf = async ({
 
 // Convert each page to a png and save that image to tempDir
 export const convertPdfToImages = async ({
-  imageDensity = 300,
+  imageDensity = 150,
   imageFormat = "png",
   imageHeight = 2048,
   pagesToConvertAsImages,
@@ -179,10 +179,10 @@ export const convertPdfToImages = async ({
     : imageHeight;
 
   // Hard cap at 300 DPI
-  const finalDensity = Math.min(imageDensity, 300);
+  const finalDensity = Math.min(imageDensity, 150);
 
   const options: ConvertPdfOptions = {
-    density: imageDensity,
+    density: finalDensity,
     format: imageFormat,
     height: adjustedHeight,
     preserveAspectRatio: true,
@@ -284,7 +284,8 @@ const convertPdfWithPoppler = async (
   const run = async (from?: number, to?: number) => {
     const pageArgs = from && to ? `-f ${from} -l ${to}` : "";
     // Ensure density and height are passed correctly
-    const cmd = `pdftoppm -${format} -r ${density || 300} -scale-to-y ${height || -1} -scale-to-x -1 ${pageArgs} "${pdfPath}" "${outputPrefix}"`;
+    // If scale-to-y is set, -r (DPI) is ignored by pdftoppm, but we set it anyway for metadata
+    const cmd = `pdftoppm -${format} -r ${density || 150} -scale-to-y ${height || -1} -scale-to-x -1 ${pageArgs} "${pdfPath}" "${outputPrefix}"`;
     await execAsync(cmd);
   };
 
@@ -333,8 +334,9 @@ export const getNumberOfPagesFromPdf = async ({
   pdfPath: string;
 }): Promise<number> => {
   const dataBuffer = await fs.readFile(pdfPath);
-  const data = await pdf(dataBuffer);
-  return data.numpages;
+  const parser = new PDFParse({ data: dataBuffer });
+  const data = await parser.getText();
+  return data.total;
 };
 
 // Gets the aspect ratio (height/width) of a PDF

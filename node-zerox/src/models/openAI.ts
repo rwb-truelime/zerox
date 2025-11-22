@@ -16,11 +16,11 @@ import {
   encodeImageToBase64,
 } from "../utils";
 import { CONSISTENCY_PROMPT, SYSTEM_PROMPT_BASE } from "../constants";
-import axios from "axios";
+import OpenAI from "openai";
 import fs from "fs-extra";
 
 export default class OpenAIModel implements ModelInterface {
-  private apiKey: string;
+  private client: OpenAI;
   private model: string;
   private llmParams?: Partial<OpenAILLMParams>;
 
@@ -29,7 +29,7 @@ export default class OpenAIModel implements ModelInterface {
     model: string,
     llmParams?: Partial<OpenAILLMParams>
   ) {
-    this.apiKey = credentials.apiKey;
+    this.client = new OpenAI({ apiKey: credentials.apiKey });
     this.model = model;
     this.llmParams = llmParams;
   }
@@ -55,7 +55,7 @@ export default class OpenAIModel implements ModelInterface {
   private async createMessageContent({
     input,
     options,
-  }: MessageContentArgs): Promise<any> {
+  }: MessageContentArgs): Promise<OpenAI.Chat.Completions.ChatCompletionContentPart[]> {
     const processImages = async (imagePaths: string[]) => {
       const nestedImages = await Promise.all(
         imagePaths.map(async (imagePath) => {
@@ -70,7 +70,7 @@ export default class OpenAIModel implements ModelInterface {
             image_url: {
               url: `data:image/png;base64,${encodeImageToBase64(buffer)}`,
             },
-            type: "image_url",
+            type: "image_url" as const,
           }));
         })
       );
@@ -99,7 +99,9 @@ export default class OpenAIModel implements ModelInterface {
     const systemPrompt = prompt || SYSTEM_PROMPT_BASE;
 
     // Default system message
-    const messages: any = [{ role: "system", content: systemPrompt }];
+    const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [
+      { role: "system", content: systemPrompt },
+    ];
 
     // If content has already been generated, add it to context.
     // This helps maintain the same format across pages
@@ -112,40 +114,42 @@ export default class OpenAIModel implements ModelInterface {
 
     // Add image to request
     const imageContents = buffers.map((buffer) => ({
-      type: "image_url",
+      type: "image_url" as const,
       image_url: {
         url: `data:image/png;base64,${encodeImageToBase64(buffer)}`,
       },
     }));
     messages.push({ role: "user", content: imageContents });
 
-    try {
-      const response = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          messages,
-          model: this.model,
-          ...convertKeysToSnakeCase(this.llmParams ?? null),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
+    const params = convertKeysToSnakeCase(this.llmParams ?? null);
+    if (
+      this.model.startsWith("o") ||
+      this.model.startsWith("o3") ||
+      this.model.startsWith("o4") ||
+      this.model.startsWith("gpt-5")
+    ) {
+      if (params.max_tokens) {
+        params.max_completion_tokens = params.max_tokens;
+        delete params.max_tokens;
+      }
+    }
 
-      const data = response.data;
+    try {
+      const response = await this.client.chat.completions.create({
+        messages,
+        model: this.model,
+        ...params,
+      });
 
       const result: CompletionResponse = {
-        content: data.choices[0].message.content,
-        inputTokens: data.usage.prompt_tokens,
-        outputTokens: data.usage.completion_tokens,
+        content: response.choices[0].message.content || "",
+        inputTokens: response.usage?.prompt_tokens || 0,
+        outputTokens: response.usage?.completion_tokens || 0,
       };
 
       if (this.llmParams?.logprobs) {
         result["logprobs"] = convertKeysToCamelCase(
-          data.choices[0].logprobs
+          response.choices[0].logprobs
         )?.content;
       }
 
@@ -163,7 +167,7 @@ export default class OpenAIModel implements ModelInterface {
     schema,
   }: ExtractionArgs): Promise<ExtractionResponse> {
     try {
-      const messages: any = [];
+      const messages: OpenAI.Chat.Completions.ChatCompletionMessageParam[] = [];
 
       if (prompt) {
         messages.push({ role: "system", content: prompt });
@@ -174,36 +178,39 @@ export default class OpenAIModel implements ModelInterface {
         content: await this.createMessageContent({ input, options }),
       });
 
-      const response = await axios.post(
-        "https://api.openai.com/v1/chat/completions",
-        {
-          messages,
-          model: this.model,
-          response_format: {
-            json_schema: { name: "extraction", schema },
-            type: "json_schema",
-          },
-          ...convertKeysToSnakeCase(this.llmParams ?? null),
-        },
-        {
-          headers: {
-            Authorization: `Bearer ${this.apiKey}`,
-            "Content-Type": "application/json",
-          },
+      const params = convertKeysToSnakeCase(this.llmParams ?? null);
+      if (
+        this.model.startsWith("o1") ||
+        this.model.startsWith("o3") ||
+        this.model.startsWith("gpt-5")
+      ) {
+        if (params.max_tokens) {
+          params.max_completion_tokens = params.max_tokens;
+          delete params.max_tokens;
         }
-      );
+      }
 
-      const data = response.data;
+      const response = await this.client.chat.completions.create({
+        messages,
+        model: this.model,
+        response_format: {
+          json_schema: { name: "extraction", schema },
+          type: "json_schema",
+        },
+        ...params,
+      });
 
       const result: ExtractionResponse = {
-        extracted: data.choices[0].message.content,
-        inputTokens: data.usage.prompt_tokens,
-        outputTokens: data.usage.completion_tokens,
+        extracted: response.choices[0].message.content
+          ? JSON.parse(response.choices[0].message.content)
+          : {},
+        inputTokens: response.usage?.prompt_tokens || 0,
+        outputTokens: response.usage?.completion_tokens || 0,
       };
 
       if (this.llmParams?.logprobs) {
         result["logprobs"] = convertKeysToCamelCase(
-          data.choices[0].logprobs
+          response.choices[0].logprobs
         )?.content;
       }
 

@@ -114,7 +114,7 @@ const result = await zerox({
   extractionPrompt: "", // LLM instructions for extracting data from document
   extractOnly: false, // Set to true to only extract structured data using a schema
   extractPerPage, // Extract data per page instead of the entire document
-  imageDensity: 300, // DPI for image conversion
+  imageDensity: 150, // DPI for image conversion
   imageHeight: 2048, // Maximum height for converted images
   llmParams: {}, // Additional parameters to pass to the LLM
   maintainFormat: false, // Slower but helps maintain consistent formatting

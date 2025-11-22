@@ -6,6 +6,7 @@ import {
   ModelInterface,
   ModelProvider,
   OpenAICredentials,
+  VertexCredentials,
 } from "../types";
 import { validateLLMParams } from "../utils/model";
 import AzureModel from "./azure";
@@ -38,6 +39,18 @@ const isGoogleCredentials = (
   return credentials && typeof credentials.apiKey === "string";
 };
 
+// Type guard for Vertex credentials
+const isVertexCredentials = (
+  credentials: any
+): credentials is VertexCredentials => {
+  return (
+    credentials &&
+    (typeof credentials.serviceAccount === "string" ||
+      typeof credentials.serviceAccount === "object") &&
+    typeof credentials.location === "string"
+  );
+};
+
 // Type guard for OpenAI credentials
 const isOpenAICredentials = (
   credentials: any
@@ -67,6 +80,11 @@ export const createModel = ({
     case ModelProvider.GOOGLE:
       if (!isGoogleCredentials(credentials)) {
         throw new Error("Invalid credentials for Google provider");
+      }
+      return new GoogleModel(credentials, model, validatedParams);
+    case ModelProvider.VERTEX:
+      if (!isVertexCredentials(credentials)) {
+        throw new Error("Invalid credentials for Vertex provider");
       }
       return new GoogleModel(credentials, model, validatedParams);
     case ModelProvider.OPENAI:

@@ -313,6 +313,18 @@ export const zerox = async ({
               );
             }
 
+            // Structured per-page log for debugging model calls
+            console.log("\n===== LLM OCR CALL =====");
+            console.table([
+              {
+                filename: path.basename(imagePath),
+                pageNumber,
+                modelProvider,
+                model,
+                maintainFormat,
+              },
+            ]);
+
             if (rawResponse.logprobs) {
               ocrLogprobs.push({
                 page: pageNumber,

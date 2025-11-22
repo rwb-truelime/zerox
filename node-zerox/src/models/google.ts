@@ -13,6 +13,7 @@ import {
   MessageContentArgs,
   ModelInterface,
   OperationMode,
+  VertexCredentials,
 } from "../types";
 import { CONSISTENCY_PROMPT, SYSTEM_PROMPT_BASE } from "../constants";
 import { GoogleGenAI, createPartFromBase64 } from "@google/genai";
@@ -24,11 +25,38 @@ export default class GoogleModel implements ModelInterface {
   private llmParams?: Partial<GoogleLLMParams>;
 
   constructor(
-    credentials: GoogleCredentials,
+    credentials: GoogleCredentials | VertexCredentials,
     model: string,
     llmParams?: Partial<GoogleLLMParams>
   ) {
-    this.client = new GoogleGenAI({ apiKey: credentials.apiKey });
+    const options: any = {
+      httpOptions: { timeout: 300000 },
+    };
+
+    if ("serviceAccount" in credentials) {
+      let serviceAccount = credentials.serviceAccount;
+      if (typeof serviceAccount === "string") {
+        try {
+          serviceAccount = JSON.parse(serviceAccount);
+        } catch (e) {
+          throw new Error("Invalid service account JSON string");
+        }
+      }
+
+      const projectId = (serviceAccount as any).project_id;
+      if (!projectId) {
+        throw new Error("Service account JSON missing project_id");
+      }
+
+      options.project = projectId;
+      options.location = (credentials as VertexCredentials).location;
+      options.vertexai = true;
+      options.googleAuthOptions = { credentials: serviceAccount };
+    } else {
+      options.apiKey = (credentials as GoogleCredentials).apiKey;
+    }
+
+    this.client = new GoogleGenAI(options);
     this.model = model;
     this.llmParams = llmParams;
   }
@@ -104,20 +132,58 @@ export default class GoogleModel implements ModelInterface {
     );
     promptParts.push(...imageContents);
 
-    // Add system prompt
-    promptParts.push({ text: prompt || SYSTEM_PROMPT_BASE });
-
     // If content has already been generated, add it to context
     if (maintainFormat && priorPage && priorPage.length) {
       promptParts.push({ text: CONSISTENCY_PROMPT(priorPage) });
     }
 
+    const systemInstruction = prompt || SYSTEM_PROMPT_BASE;
+
+    const requestPayload = {
+      config: {
+        ...convertKeysToSnakeCase(this.llmParams ?? null),
+        systemInstruction: {
+          parts: [{ text: systemInstruction }],
+        },
+      },
+      contents: promptParts,
+      model: this.model,
+    };
+
+    const safeRequestPayload = {
+      ...requestPayload,
+      contents: (requestPayload.contents || []).map((part: any) => {
+        if (part.inlineData || part.inline_data) {
+          const { inlineData, inline_data, ...rest } = part;
+          return {
+            ...rest,
+            inlineData: inlineData
+              ? { ...inlineData, data: "<omitted>" }
+              : undefined,
+            inline_data: inline_data
+              ? { ...inline_data, data: "<omitted>" }
+              : undefined,
+          };
+        }
+        return part;
+      }),
+    };
+
     try {
-      const response = await this.client.models.generateContent({
-        config: convertKeysToSnakeCase(this.llmParams ?? null),
-        contents: promptParts,
-        model: this.model,
-      });
+      const response = await this.client.models.generateContent(
+        requestPayload
+      );
+
+      // Structured debug log for tests (filename is not available here)
+      console.table([
+        {
+          context: "OCR",
+          filename: "N/A",
+          model: this.model,
+          request: JSON.stringify(safeRequestPayload, null, 2),
+          response: "<see raw API response>",
+        },
+      ]);
 
       return {
         content: response.text || "",
@@ -126,6 +192,15 @@ export default class GoogleModel implements ModelInterface {
       };
     } catch (err) {
       console.error("Error in Google completion", err);
+      console.table([
+        {
+          context: "OCR",
+          filename: "N/A",
+          model: this.model,
+          request: JSON.stringify(safeRequestPayload, null, 2),
+          error: String(err),
+        },
+      ]);
       throw err;
     }
   }
@@ -142,19 +217,54 @@ export default class GoogleModel implements ModelInterface {
     const parts = await this.createMessageContent({ input, options });
     promptParts.push(...parts);
 
-    // Add system prompt
-    promptParts.push({ text: prompt || "Extract schema data" });
+    const systemInstruction = prompt || "Extract schema data";
+
+    const requestPayload = {
+      config: {
+        ...convertKeysToSnakeCase(this.llmParams ?? null),
+        responseMimeType: "application/json",
+        responseSchema: schema,
+        systemInstruction: {
+          parts: [{ text: systemInstruction }],
+        },
+      },
+      contents: promptParts,
+      model: this.model,
+    };
+
+    const safeRequestPayload = {
+      ...requestPayload,
+      contents: (requestPayload.contents || []).map((part: any) => {
+        if (part.inlineData || part.inline_data) {
+          const { inlineData, inline_data, ...rest } = part;
+          return {
+            ...rest,
+            inlineData: inlineData
+              ? { ...inlineData, data: "<omitted>" }
+              : undefined,
+            inline_data: inline_data
+              ? { ...inline_data, data: "<omitted>" }
+              : undefined,
+          };
+        }
+        return part;
+      }),
+    };
 
     try {
-      const response = await this.client.models.generateContent({
-        config: {
-          ...convertKeysToSnakeCase(this.llmParams ?? null),
-          responseMimeType: "application/json",
-          responseSchema: schema,
+      const response = await this.client.models.generateContent(
+        requestPayload
+      );
+
+      console.table([
+        {
+          context: "EXTRACTION",
+          filename: "N/A",
+          model: this.model,
+          request: JSON.stringify(safeRequestPayload, null, 2),
+          response: "<see raw API response>",
         },
-        contents: promptParts,
-        model: this.model,
-      });
+      ]);
 
       return {
         extracted: response.text ? JSON.parse(response.text) : {},
@@ -163,6 +273,15 @@ export default class GoogleModel implements ModelInterface {
       };
     } catch (err) {
       console.error("Error in Google completion", err);
+      console.table([
+        {
+          context: "EXTRACTION",
+          filename: "N/A",
+          model: this.model,
+          request: JSON.stringify(safeRequestPayload, null, 2),
+          error: String(err),
+        },
+      ]);
       throw err;
     }
   }

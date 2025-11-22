@@ -1,5 +1,5 @@
 import { compareKeywords } from "./utils";
-import { ModelOptions } from "../src/types";
+import { ModelOptions, ModelProvider } from "../src/types";
 import { zerox } from "../src";
 import dotenv from "dotenv";
 import fs from "node:fs";
@@ -13,22 +13,62 @@ interface TestInput {
   file: string;
 }
 
+interface TestConfig {
+  name: string;
+  model: ModelOptions;
+  modelProvider: ModelProvider;
+  credentials: any;
+}
+
 const FILE_CONCURRENCY = 10;
 const INPUT_DIR = path.join(__dirname, "../../shared/inputs");
 const TEST_JSON_PATH = path.join(__dirname, "../../shared/test.json");
-const OUTPUT_DIR = path.join(__dirname, "results", `test-run-${Date.now()}`);
-const TEMP_DIR = path.join(OUTPUT_DIR, "temp");
+const BASE_OUTPUT_DIR = path.join(__dirname, "results");
 
-async function main() {
-  const T1 = new Date();
+const configs: TestConfig[] = [
+  // {
+  //   name: "openai",
+  //   model: ModelOptions.OPENAI_GPT_4_1,
+  //   modelProvider: ModelProvider.OPENAI,
+  //   credentials: { apiKey: process.env.OPENAI_API_KEY || "" },
+  // },
+  // {
+  //   name: "google",
+  //   model: ModelOptions.GOOGLE_GEMINI_3_PRO_PREVIEW,
+  //   modelProvider: ModelProvider.GOOGLE,
+  //   credentials: { apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "" },
+  // },
+  {
+    name: "google-vertex",
+    model: ModelOptions.GOOGLE_GEMINI_3_PRO_PREVIEW,
+    modelProvider: ModelProvider.VERTEX,
+    credentials: {
+      serviceAccount: process.env.GOOGLE_SERVICE_ACCOUNT || "",
+      location: process.env.GOOGLE_LOCATION || "global",
+    },
+  },
+];
 
-  // Read the test inputs and expected keywords
-  const testInputs: TestInput[] = JSON.parse(
-    fs.readFileSync(TEST_JSON_PATH, "utf-8")
+async function runTestsForConfig(config: TestConfig, testInputs: TestInput[]) {
+  if (
+    !config.credentials.apiKey &&
+    (!config.credentials.serviceAccount || !config.credentials.location)
+  ) {
+    console.warn(`Skipping ${config.name}: Missing Credentials`);
+    return;
+  }
+
+  console.log(`Starting tests for ${config.name} using ${config.model}...`);
+
+  const runTimestamp = Date.now();
+  const outputDir = path.join(
+    BASE_OUTPUT_DIR,
+    `test-run-${runTimestamp}-${config.name}`
   );
+  const tempDir = path.join(outputDir, "temp");
 
   // Create the output directory
-  fs.mkdirSync(OUTPUT_DIR, { recursive: true });
+  fs.mkdirSync(outputDir, { recursive: true });
 
   const limit = pLimit(FILE_CONCURRENCY);
 
@@ -43,43 +83,52 @@ async function main() {
           return null;
         }
 
-        // Run OCR on the file
-        const ocrResult = await zerox({
-          cleanup: false,
-          filePath,
-          maintainFormat: false,
-          model: ModelOptions.OPENAI_GPT_4O,
-          openaiAPIKey: process.env.OPENAI_API_KEY,
-          outputDir: OUTPUT_DIR,
-          tempDir: TEMP_DIR,
-        });
+        try {
+          // Run OCR on the file
+          const ocrResult = await zerox({
+            cleanup: false,
+            filePath,
+            maintainFormat: false,
+            model: config.model,
+            modelProvider: config.modelProvider,
+            credentials: config.credentials,
+            outputDir,
+            tempDir,
+          });
 
-        // Compare expected keywords with OCR output
-        const keywordCounts = compareKeywords(
-          ocrResult.pages,
-          testInput.expectedKeywords
-        );
+          // Compare expected keywords with OCR output
+          const keywordCounts = compareKeywords(
+            ocrResult.pages,
+            testInput.expectedKeywords
+          );
 
-        // Prepare the result
-        return {
-          file: testInput.file,
-          keywordCounts,
-          totalKeywords: testInput.expectedKeywords.flat().length,
-        };
+          // Prepare the result
+          return {
+            file: testInput.file,
+            keywordCounts,
+            totalKeywords: testInput.expectedKeywords.flat().length,
+          };
+        } catch (error) {
+          console.error(`Error processing ${testInput.file}:`, error);
+          return null;
+        }
       })
     )
   );
 
-  // Filter out any null results (due to missing files)
-  const filteredResults = results.filter((result) => result !== null);
+  // Filter out any null results
+  const filteredResults = results.filter(
+    (result): result is NonNullable<typeof result> => result !== null
+  );
+
   const tableData = filteredResults.map((result) => {
     const totalFound =
-      result?.keywordCounts.reduce(
+      result.keywordCounts.reduce(
         (sum, page) => sum + page.keywordsFound.length,
         0
       ) ?? 0;
     const totalMissing =
-      result?.keywordCounts.reduce(
+      result.keywordCounts.reduce(
         (sum, page) => sum + page.keywordsMissing.length,
         0
       ) ?? 0;
@@ -90,7 +139,7 @@ async function main() {
         : "N/A";
 
     return {
-      fileName: result?.file,
+      fileName: result.file,
       keywordsFound: totalFound,
       keywordsMissing: totalMissing,
       percentage,
@@ -98,55 +147,21 @@ async function main() {
   });
 
   // Write the test results to output.json
-  fs.writeFileSync(
-    path.join(OUTPUT_DIR, "output.json"),
-    JSON.stringify(filteredResults, null, 2)
-  );
-
-  const T2 = new Date();
-  const completionTime = ((T2.getTime() - T1.getTime()) / 1000).toFixed(2);
-
-  // Calculate overall accuracy and total pages tested
-  const totalKeywordsFound = filteredResults.reduce(
-    (sum, result) =>
-      sum +
-      (result?.keywordCounts?.reduce(
-        (s, page) => s + (page.keywordsFound?.length ?? 0),
-        0
-      ) ?? 0),
-    0
-  );
-  const totalKeywordsMissing = filteredResults.reduce(
-    (sum, result) =>
-      sum +
-      (result?.keywordCounts?.reduce(
-        (s, page) => s + (page.keywordsMissing?.length ?? 0),
-        0
-      ) ?? 0),
-    0
-  );
-  const totalKeywords = totalKeywordsFound + totalKeywordsMissing;
-  const overallAccuracy =
-    totalKeywords > 0
-      ? ((totalKeywordsFound / totalKeywords) * 100).toFixed(2) + "%"
-      : "N/A";
-
-  const pagesTested = filteredResults.reduce(
-    (sum, result) => sum + (result?.keywordCounts?.length ?? 0),
-    0
-  );
-
-  console.log("\n");
-  console.log("-------------------------------------------------------------");
-  console.log("Test complete in", completionTime, "seconds");
-  console.log("Overall accuracy:", overallAccuracy);
-  console.log("Pages tested:", pagesTested);
-  console.log("-------------------------------------------------------------");
+  const outputFilePath = path.join(outputDir, "results.json");
+  fs.writeFileSync(outputFilePath, JSON.stringify(tableData, null, 2));
   console.table(tableData);
-  console.log("-------------------------------------------------------------");
-  console.log(`Full test results are available in ${OUTPUT_DIR}`);
-  console.log("-------------------------------------------------------------");
-  console.log("\n");
+  console.log(`Results for ${config.name} saved to ${outputFilePath}`);
+}
+
+async function main() {
+  // Read the test inputs and expected keywords
+  const testInputs: TestInput[] = JSON.parse(
+    fs.readFileSync(TEST_JSON_PATH, "utf-8")
+  );
+
+  for (const config of configs) {
+    await runTestsForConfig(config, testInputs);
+  }
 }
 
 main().catch((error) => {
