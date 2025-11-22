@@ -60,6 +60,7 @@ const isOpenAICredentials = (
 
 export const createModel = ({
   credentials,
+  googleOptions,
   llmParams,
   model,
   provider,
@@ -81,12 +82,22 @@ export const createModel = ({
       if (!isGoogleCredentials(credentials)) {
         throw new Error("Invalid credentials for Google provider");
       }
-      return new GoogleModel(credentials, model, validatedParams);
+      return new GoogleModel(
+        credentials,
+        model,
+        validatedParams,
+        googleOptions
+      );
     case ModelProvider.VERTEX:
       if (!isVertexCredentials(credentials)) {
         throw new Error("Invalid credentials for Vertex provider");
       }
-      return new GoogleModel(credentials, model, validatedParams);
+      return new GoogleModel(
+        credentials,
+        model,
+        validatedParams,
+        googleOptions
+      );
     case ModelProvider.OPENAI:
       if (!isOpenAICredentials(credentials)) {
         throw new Error("Invalid credentials for OpenAI provider");

@@ -6,6 +6,7 @@ export interface ZeroxArgs {
   concurrency?: number;
   correctOrientation?: boolean;
   credentials?: ModelCredentials;
+  googleOptions?: GoogleModelOptions;
   customModelFunction?: (params: {
     buffers: Buffer[];
     image: string;
@@ -174,6 +175,7 @@ export interface CreateModelArgs {
   credentials: ModelCredentials;
   llmParams: Partial<LLMParams>;
   model: ModelOptions | string;
+  googleOptions?: GoogleModelOptions;
   provider: ModelProvider | string;
 }
 
@@ -296,4 +298,16 @@ export interface LangfuseMetadata {
   type: string;
   updatedAt: string;
   version: number;
+}
+
+export type Gemini3ThinkingLevel = "low" | "high";
+export type Gemini3MediaResolution = "low" | "medium" | "high";
+
+export interface GoogleGemini3Options {
+  thinkingLevel?: Gemini3ThinkingLevel;
+  mediaResolution?: Gemini3MediaResolution;
+}
+
+export interface GoogleModelOptions {
+  gemini3?: GoogleGemini3Options;
 }

@@ -285,8 +285,19 @@ const convertPdfWithPoppler = async (
     const pageArgs = from && to ? `-f ${from} -l ${to}` : "";
     // Ensure density and height are passed correctly
     // If scale-to-y is set, -r (DPI) is ignored by pdftoppm, but we set it anyway for metadata
-    const cmd = `pdftoppm -${format} -r ${density || 150} -scale-to-y ${height || -1} -scale-to-x -1 ${pageArgs} "${pdfPath}" "${outputPrefix}"`;
-    await execAsync(cmd);
+    const cmd = `pdftoppm -${format} -r ${density || 150} -scale-to-y ${
+      height || -1
+    } -scale-to-x -1 ${pageArgs} "${pdfPath}" "${outputPrefix}"`;
+    const { stdout, stderr } = await execAsync(cmd);
+    const combinedOutput = `${stdout ?? ""}${stderr ?? ""}`;
+
+    if (/Invalid resolution \d+ dpi/i.test(combinedOutput)) {
+      throw new Error(
+        `Poppler reported invalid DPI while converting ${path.basename(
+          pdfPath
+        )}: ${combinedOutput.trim()}`
+      );
+    }
   };
 
   if (pagesToConvertAsImages === -1) {

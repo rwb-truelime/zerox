@@ -14,6 +14,7 @@ const createAndAddWorker = async (scheduler: Tesseract.Scheduler) => {
 
   await worker.setParameters({
     tessedit_pageseg_mode: Tesseract.PSM.OSD_ONLY,
+    user_defined_dpi: "150",
   });
 
   return scheduler.addWorker(worker);

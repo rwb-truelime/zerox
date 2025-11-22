@@ -18,6 +18,8 @@ interface TestConfig {
   model: ModelOptions;
   modelProvider: ModelProvider;
   credentials: any;
+  llmParams?: any;
+  googleOptions?: any;
 }
 
 const FILE_CONCURRENCY = 10;
@@ -38,13 +40,43 @@ const configs: TestConfig[] = [
   //   modelProvider: ModelProvider.GOOGLE,
   //   credentials: { apiKey: process.env.GOOGLE_GENERATIVE_AI_API_KEY || "" },
   // },
+  // {
+  //   name: "google-vertex-gemini-2.5-pro",
+  //   model: ModelOptions.GOOGLE_GEMINI_2_5_PRO,
+  //   modelProvider: ModelProvider.VERTEX,
+  //   credentials: {
+  //     serviceAccount: process.env.GOOGLE_SERVICE_ACCOUNT || "",
+  //     location: process.env.GOOGLE_LOCATION || "global",
+  //   },
+  //   llmParams: {
+  //     // Explicit defaults used in providerDefaultParams
+  //     maxOutputTokens: 16000,
+  //     temperature: 1,
+  //     topP: 1,
+  //     frequencyPenalty: 0,
+  //     presencePenalty: 0,
+  //   },
+  // },
   {
-    name: "google-vertex",
+    name: "google-vertex-gemini-3-pro-preview",
     model: ModelOptions.GOOGLE_GEMINI_3_PRO_PREVIEW,
     modelProvider: ModelProvider.VERTEX,
     credentials: {
       serviceAccount: process.env.GOOGLE_SERVICE_ACCOUNT || "",
       location: process.env.GOOGLE_LOCATION || "global",
+    },
+    llmParams: {
+      maxOutputTokens: 16000,
+      temperature: 1,
+      topP: 1,
+      frequencyPenalty: 0,
+      presencePenalty: 0,
+    },
+    googleOptions: {
+      gemini3: {
+        thinkingLevel: "high",
+        mediaResolution: "high",
+      },
     },
   },
 ];
@@ -92,6 +124,8 @@ async function runTestsForConfig(config: TestConfig, testInputs: TestInput[]) {
             model: config.model,
             modelProvider: config.modelProvider,
             credentials: config.credentials,
+            llmParams: config.llmParams,
+            googleOptions: config.googleOptions,
             outputDir,
             tempDir,
           });

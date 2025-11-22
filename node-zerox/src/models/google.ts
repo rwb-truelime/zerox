@@ -1,8 +1,5 @@
-import {
-  cleanupImage,
-  convertKeysToSnakeCase,
-  encodeImageToBase64,
-} from "../utils";
+import { convertKeysToSnakeCase } from "../utils/common";
+import { cleanupImage, encodeImageToBase64 } from "../utils/image";
 import {
   CompletionArgs,
   CompletionResponse,
@@ -10,28 +7,47 @@ import {
   ExtractionResponse,
   GoogleCredentials,
   GoogleLLMParams,
+  GoogleModelOptions,
   MessageContentArgs,
   ModelInterface,
   OperationMode,
   VertexCredentials,
 } from "../types";
 import { CONSISTENCY_PROMPT, SYSTEM_PROMPT_BASE } from "../constants";
-import { GoogleGenAI, createPartFromBase64 } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import fs from "fs-extra";
+
+const GEMINI_3_THINKING_LEVEL_MAP = {
+  low: "THINKING_LEVEL_LOW",
+  high: "THINKING_LEVEL_HIGH",
+} as const;
+
+const GEMINI_3_MEDIA_RESOLUTION_MAP = {
+  low: "MEDIA_RESOLUTION_LOW",
+  medium: "MEDIA_RESOLUTION_MEDIUM",
+  high: "MEDIA_RESOLUTION_HIGH",
+} as const;
 
 export default class GoogleModel implements ModelInterface {
   private client: GoogleGenAI;
   private model: string;
   private llmParams?: Partial<GoogleLLMParams>;
+  private googleOptions?: GoogleModelOptions;
+  private isVertexDeployment: boolean;
+  private hasLoggedVertexThinkingWarning: boolean;
 
   constructor(
     credentials: GoogleCredentials | VertexCredentials,
     model: string,
-    llmParams?: Partial<GoogleLLMParams>
+    llmParams?: Partial<GoogleLLMParams>,
+    googleOptions?: GoogleModelOptions,
+    client?: GoogleGenAI
   ) {
     const options: any = {
       httpOptions: { timeout: 300000 },
     };
+    this.isVertexDeployment = false;
+    this.hasLoggedVertexThinkingWarning = false;
 
     if ("serviceAccount" in credentials) {
       let serviceAccount = credentials.serviceAccount;
@@ -52,13 +68,15 @@ export default class GoogleModel implements ModelInterface {
       options.location = (credentials as VertexCredentials).location;
       options.vertexai = true;
       options.googleAuthOptions = { credentials: serviceAccount };
+      this.isVertexDeployment = true;
     } else {
       options.apiKey = (credentials as GoogleCredentials).apiKey;
     }
 
-    this.client = new GoogleGenAI(options);
+    this.client = client ?? new GoogleGenAI(options);
     this.model = model;
     this.llmParams = llmParams;
+    this.googleOptions = googleOptions;
   }
 
   async getCompletion(
@@ -93,9 +111,12 @@ export default class GoogleModel implements ModelInterface {
             scheduler: options?.scheduler ?? null,
             trimEdges: options?.trimEdges ?? false,
           });
-          return buffers.map((buffer) =>
-            createPartFromBase64(encodeImageToBase64(buffer), "image/png")
-          );
+          return buffers.map((buffer) => ({
+            inlineData: {
+              data: encodeImageToBase64(buffer),
+              mimeType: "image/png",
+            },
+          }));
         })
       );
       return nestedImages.flat();
@@ -127,9 +148,12 @@ export default class GoogleModel implements ModelInterface {
     const promptParts: any = [];
 
     // Add image contents
-    const imageContents = buffers.map((buffer) =>
-      createPartFromBase64(encodeImageToBase64(buffer), "image/png")
-    );
+    const imageContents = buffers.map((buffer) => ({
+      inlineData: {
+        data: encodeImageToBase64(buffer),
+        mimeType: "image/png",
+      },
+    }));
     promptParts.push(...imageContents);
 
     // If content has already been generated, add it to context
@@ -139,13 +163,15 @@ export default class GoogleModel implements ModelInterface {
 
     const systemInstruction = prompt || SYSTEM_PROMPT_BASE;
 
-    const requestPayload = {
-      config: {
-        ...convertKeysToSnakeCase(this.llmParams ?? null),
-        systemInstruction: {
-          parts: [{ text: systemInstruction }],
-        },
+    const config = this.applyGemini3Overrides({
+      ...convertKeysToSnakeCase(this.llmParams ?? null),
+      systemInstruction: {
+        parts: [{ text: systemInstruction }],
       },
+    });
+
+    const requestPayload = {
+      config,
       contents: promptParts,
       model: this.model,
     };
@@ -219,15 +245,17 @@ export default class GoogleModel implements ModelInterface {
 
     const systemInstruction = prompt || "Extract schema data";
 
-    const requestPayload = {
-      config: {
-        ...convertKeysToSnakeCase(this.llmParams ?? null),
-        responseMimeType: "application/json",
-        responseSchema: schema,
-        systemInstruction: {
-          parts: [{ text: systemInstruction }],
-        },
+    const config = this.applyGemini3Overrides({
+      ...convertKeysToSnakeCase(this.llmParams ?? null),
+      responseMimeType: "application/json",
+      responseSchema: schema,
+      systemInstruction: {
+        parts: [{ text: systemInstruction }],
       },
+    });
+
+    const requestPayload = {
+      config,
       contents: promptParts,
       model: this.model,
     };
@@ -284,5 +312,63 @@ export default class GoogleModel implements ModelInterface {
       ]);
       throw err;
     }
+  }
+
+  private isGemini3Model(): boolean {
+    return typeof this.model === "string" && this.model.startsWith("gemini-3-");
+  }
+
+  private applyGemini3Overrides(
+    config: Record<string, unknown>
+  ): Record<string, unknown> {
+    if (!this.isGemini3Model()) {
+      return config;
+    }
+
+    const gemini3Options = this.googleOptions?.gemini3;
+    if (!gemini3Options) {
+      return config;
+    }
+
+    const enrichedConfig: Record<string, unknown> = { ...config };
+
+    if (gemini3Options.thinkingLevel) {
+      if (this.isVertexDeployment) {
+        if (!this.hasLoggedVertexThinkingWarning) {
+          console.warn(
+            "Gemini 3 thinkingLevel is not yet supported on Vertex AI deployments; skipping option."
+          );
+          this.hasLoggedVertexThinkingWarning = true;
+        }
+      } else {
+        const mappedLevel =
+          GEMINI_3_THINKING_LEVEL_MAP[gemini3Options.thinkingLevel];
+        if (!mappedLevel) {
+          throw new Error(
+            `Unsupported Gemini 3 thinking level: ${gemini3Options.thinkingLevel}`
+          );
+        }
+        const currentConfig = (enrichedConfig as Record<string, any>)
+          .thinkingConfig;
+        (enrichedConfig as Record<string, any>).thinkingConfig = {
+          ...(currentConfig ?? {}),
+          thinkingLevel: mappedLevel,
+        };
+      }
+    }
+
+    if (gemini3Options.mediaResolution) {
+      const mappedResolution =
+        GEMINI_3_MEDIA_RESOLUTION_MAP[gemini3Options.mediaResolution];
+      if (!mappedResolution) {
+        throw new Error(
+          `Unsupported Gemini 3 media resolution: ${gemini3Options.mediaResolution}`
+        );
+      }
+      (enrichedConfig as Record<string, any>).mediaResolution =
+        mappedResolution;
+    }
+
+    return enrichedConfig;
   }
 }

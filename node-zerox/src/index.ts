@@ -51,6 +51,7 @@ export const zerox = async ({
   concurrency = 10,
   correctOrientation = true,
   credentials = { apiKey: "" },
+  googleOptions,
   customModelFunction,
   directImageExtraction = false,
   enableHybridExtraction = false,
@@ -250,6 +251,7 @@ export const zerox = async ({
       // Start processing OCR using LLM
       const modelInstance = createModel({
         credentials,
+        googleOptions,
         llmParams,
         model,
         provider: modelProvider,
@@ -400,6 +402,7 @@ export const zerox = async ({
     if (schema) {
       const extractionModelInstance = createModel({
         credentials: extractionCredentials,
+        googleOptions,
         llmParams: extractionLlmParams,
         model: extractionModel,
         provider: extractionModelProvider,

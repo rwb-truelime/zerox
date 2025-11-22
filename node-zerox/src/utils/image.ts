@@ -20,7 +20,23 @@ export const cleanupImage = async ({
   scheduler,
   trimEdges,
 }: CleanupImageProps): Promise<Buffer[]> => {
-  const image = sharp(imageBuffer);
+  // Check if the image has valid DPI metadata
+  const metadata = await sharp(imageBuffer).metadata();
+  const density = metadata.density;
+
+  // Smart DPI Normalization:
+  // 1. If density is missing or 0, Tesseract warns "Invalid resolution 0 dpi".
+  // 2. If density is very high (> 2400), it's likely Pixels Per Meter (e.g. 7620 ppm ~ 193 dpi),
+  //    which Tesseract misinterprets as DPI and warns.
+  // 3. If density is very low (< 70), it's likely invalid.
+  // 4. If density is > 150, we cap it at 150 to ensure consistent performance.
+  // In these cases, we inject a standard 150 DPI.
+  // Otherwise, we preserve the existing valid metadata.
+  const shouldNormalizeDpi = !density || density < 70 || density > 150;
+
+  const image = sharp(imageBuffer).withMetadata(
+    shouldNormalizeDpi ? { density: 150 } : undefined
+  );
 
   // Trim extra space around the content in the image
   if (trimEdges) {
@@ -56,9 +72,19 @@ const determineOptimalRotation = async ({
   scheduler: Tesseract.Scheduler;
 }): Promise<number> => {
   const imageBuffer = await image.toBuffer();
+
+  // Check metadata again for the buffer we just generated
+  const metadata = await sharp(imageBuffer).metadata();
+  const density = metadata.density;
+  const shouldNormalizeDpi = !density || density < 70 || density > 150;
+
+  const normalizedBuffer = await sharp(imageBuffer)
+    .withMetadata(shouldNormalizeDpi ? { density: 150 } : undefined)
+    .png()
+    .toBuffer();
   const {
     data: { orientation_confidence, orientation_degrees },
-  } = await scheduler.addJob("detect", imageBuffer);
+  } = await scheduler.addJob("detect", normalizedBuffer);
 
   if (orientation_degrees) {
     console.log(

@@ -25,26 +25,26 @@ Zerox is available as both a Node and Python package.
 - [Node README](#node-zerox) - [npm package](https://www.npmjs.com/package/zerox)
 - [Python README](#python-zerox) - [pip package](https://pypi.org/project/py-zerox/)
 
-| Feature                   | Node.js                      | Python                     |
-| ------------------------- | ---------------------------- | -------------------------- |
-| PDF Processing            | ✓ (requires graphicsmagick)  | ✓ (requires poppler)       |
-| Image Processing          | ✓                            | ✓                          |
-| OpenAI Support            | ✓                            | ✓                          |
-| Azure OpenAI Support      | ✓                            | ✓                          |
-| AWS Bedrock Support       | ✓                            | ✓                          |
-| Google Gemini Support     | ✓                            | ✓                          |
-| Vertex AI Support         | ✗                            | ✓                          |
-| Data Extraction           | ✓ (`schema`)                 | ✗                          |
-| Per-page Extraction       | ✓ (`extractPerPage`)         | ✗                          |
-| Custom System Prompts     | ✗                            | ✓ (`custom_system_prompt`) |
-| Maintain Format Option    | ✓ (`maintainFormat`)         | ✓ (`maintain_format`)      |
-| Async API                 | ✓                            | ✓                          |
-| Error Handling Modes      | ✓ (`errorMode`)              | ✗                          |
-| Concurrent Processing     | ✓ (`concurrency`)            | ✓ (`concurrency`)          |
-| Temp Directory Management | ✓ (`tempDir`)                | ✓ (`temp_dir`)             |
-| Page Selection            | ✓ (`pagesToConvertAsImages`) | ✓ (`select_pages`)         |
-| Orientation Correction    | ✓ (`correctOrientation`)     | ✗                          |
-| Edge Trimming             | ✓ (`trimEdges`)              | ✗                          |
+| Feature                   | Node.js                                   | Python                     |
+| ------------------------- | ----------------------------------------- | -------------------------- |
+| PDF Processing            | ✓ (requires graphicsmagick/ghostscript)   | ✓ (requires poppler)       |
+| Image Processing          | ✓                                         | ✓                          |
+| OpenAI Support            | ✓                                         | ✓                          |
+| Azure OpenAI Support      | ✓                                         | ✓                          |
+| AWS Bedrock Support       | ✓                                         | ✓                          |
+| Google Gemini Support     | ✓ (Gemini 2.5, 3 via Google GenAI / Vertex)| ✓                          |
+| Vertex AI Support         | ✓ (Gemini via service account credentials) | ✓                          |
+| Data Extraction           | ✓ (`schema`)                              | ✗                          |
+| Per-page Extraction       | ✓ (`extractPerPage`)                      | ✗                          |
+| Custom System Prompts     | ✗                                         | ✓ (`custom_system_prompt`) |
+| Maintain Format Option    | ✓ (`maintainFormat`)                      | ✓ (`maintain_format`)      |
+| Async API                 | ✓                                         | ✓                          |
+| Error Handling Modes      | ✓ (`errorMode`)                           | ✗                          |
+| Concurrent Processing     | ✓ (`concurrency`)                         | ✓ (`concurrency`)          |
+| Temp Directory Management | ✓ (`tempDir`)                             | ✓ (`temp_dir`)             |
+| Page Selection            | ✓ (`pagesToConvertAsImages`)              | ✓ (`select_pages`)         |
+| Orientation Correction    | ✓ (`correctOrientation`)                  | ✗                          |
+| Edge Trimming             | ✓ (`trimEdges`)                           | ✗                          |
 
 ## Node Zerox
 
@@ -117,6 +117,13 @@ const result = await zerox({
   imageDensity: 150, // DPI for image conversion
   imageHeight: 2048, // Maximum height for converted images
   llmParams: {}, // Additional parameters to pass to the LLM
+  googleOptions: {
+    // Optional: Gemini 3 specific controls (ignored for earlier models)
+    gemini3: {
+      // thinkingLevel: "low" | "high"  (defaults to Gemini 3 dynamic high when omitted)
+      // mediaResolution: "low" | "medium" | "high" (defaults to Vertex/Gemini 3 media defaults when omitted)
+    },
+  },
   maintainFormat: false, // Slower but helps maintain consistent formatting
   maxImageSize: 15, // Maximum size of images to compress, defaults to 15MB
   maxRetries: 1, // Number of retries to attempt on a failed page, defaults to 1
@@ -131,6 +138,10 @@ const result = await zerox({
   trimEdges: true, // True by default, trims pixels from all edges that contain values similar to the given background color, which defaults to that of the top-left pixel
 });
 ```
+
+`googleOptions.gemini3` is ignored for Gemini 2.x and earlier models, so you can opt into the new Gemini 3 thinking level or media resolution controls without affecting existing deployments. Leave the object undefined to rely on Vertex defaults for deterministic upgrades.
+
+> Note: `thinkingLevel` currently only applies to Gemini 3 models accessed through the Google GenAI API. Vertex AI deployments silently skip this option until Google enables Vertex-side thinking level support. Media resolution works in both environments.
 
 The `maintainFormat` option tries to return the markdown in a consistent format by passing the output of a prior page in as additional context for the next page. This requires the requests to run synchronously, so it's a lot slower. But valuable if your documents have a lot of tabular data, or frequently have tables that cross pages.
 
@@ -205,7 +216,7 @@ You can also set `extractionModel`, `extractionModelProvider`, and `extractionCr
 
 ### Supported Models
 
-Zerox supports a wide range of models across different providers:
+Zerox supports a wide range of models across different providers (Node and Python lists differ slightly):
 
 - **Azure OpenAI**
 
@@ -227,9 +238,11 @@ Zerox supports a wide range of models across different providers:
   - Claude 3 Sonnet (2024.02, 2024.06, 2024.10)
   - Claude 3 Opus (2024.02)
 
-- **Google Gemini**
-  - Gemini 1.5 (Flash, Flash-8B, Pro)
-  - Gemini 2.0 (Flash, Flash-Lite)
+- **Google Gemini (Node)**
+  - Gemini 2.5 Pro (`gemini-2.5-pro`)
+  - Gemini 2.5 Flash (`gemini-2.5-flash`)
+  - Gemini 2.5 Flash Lite (`gemini-2.5-flash-lite`)
+  - Gemini 3 Pro Preview (`gemini-3-pro-preview`, via Google GenAI / Vertex)
 
 ```ts
 import { zerox } from "zerox";
@@ -268,13 +281,33 @@ const bedrockResult = await zerox({
   },
 });
 
-// Google Gemini
+// Google Gemini 2.5 (direct Google GenAI)
 const geminiResult = await zerox({
   filePath: "path/to/file.pdf",
   modelProvider: ModelProvider.GOOGLE,
-  model: ModelOptions.GOOGLE_GEMINI_1_5_PRO,
+  model: ModelOptions.GOOGLE_GEMINI_2_5_PRO, // or _FLASH / _FLASH_LITE
   credentials: {
     apiKey: process.env.GEMINI_API_KEY,
+  },
+});
+
+// Google Gemini 2.5 or 3 via Vertex AI
+const vertexGeminiResult = await zerox({
+  filePath: "path/to/file.pdf",
+  modelProvider: ModelProvider.VERTEX,
+  model: ModelOptions.GOOGLE_GEMINI_2_5_PRO, // or GOOGLE_GEMINI_3_PRO_PREVIEW
+  credentials: {
+    // JSON string of the service account key
+    serviceAccountJson: process.env.VERTEX_SERVICE_ACCOUNT_JSON as string,
+    // Optional: override default location if needed (e.g. "us-central1")
+    location: process.env.VERTEX_LOCATION ?? "us-central1",
+  },
+  // Optional: Gemini 3-only tuning (ignored for 2.5 models)
+  googleOptions: {
+    gemini3: {
+      // thinkingLevel: "low" | "high",
+      // mediaResolution: "low" | "medium" | "high",
+    },
   },
 });
 ```
